@@ -1,0 +1,168 @@
+/* SPDX-FileCopyrightText: 2026 Paul Moore
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * The style of the login pane. The greeter and the locker load this same
+ * file, so the two screens match.
+ */
+
+window,
+.psldm-root {
+  background: #101014;
+  color: #ffffff;
+  font-family: "SF Pro Display", "SF Pro Text", Inter, Cantarell, sans-serif;
+}
+
+/* The clock at the top of the screen. It moves down when the screen shows
+ * the clock only, as macOS does. */
+.psldm-clock-column {
+  margin-top: 56px;
+  transition: margin-top 340ms ease-out;
+}
+
+.psldm-clock-column.idle {
+  margin-top: 260px;
+}
+
+.psldm-clock {
+  font-size: 80px;
+  font-weight: 200;
+  letter-spacing: -2px;
+  color: #ffffff;
+}
+
+/* The avatar, the name, and the field appear after the first key. */
+.psldm-login {
+  opacity: 1;
+  transition: opacity 240ms ease-out;
+}
+
+.psldm-login.idle {
+  opacity: 0;
+}
+
+.psldm-date {
+  font-size: 20px;
+  font-weight: 500;
+  color: alpha(#ffffff, 0.85);
+}
+
+/* The avatar paints itself. See crates/psldm-ui/src/avatar.rs. */
+
+.psldm-avatar-initial {
+  font-size: 40px;
+  font-weight: 500;
+  color: alpha(#ffffff, 0.9);
+}
+
+.psldm-name {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 14px;
+  color: #ffffff;
+}
+
+/* The capsule password field. The selector names the entry node as well as
+ * the class, so that it wins over the theme. */
+entry.psldm-entry {
+  min-width: 200px;
+  min-height: 32px;
+  margin-top: 18px;
+  padding: 0 6px 0 14px;
+  border: none;
+  outline: none;
+  border-radius: 16px;
+  background-color: alpha(#ffffff, 0.20);
+  background-image: none;
+  box-shadow: inset 0 0 0 1px alpha(#ffffff, 0.30);
+  color: #ffffff;
+  caret-color: #ffffff;
+  font-size: 15px;
+}
+
+entry.psldm-entry:focus,
+entry.psldm-entry:focus-within {
+  background-color: alpha(#ffffff, 0.28);
+  box-shadow: inset 0 0 0 1px alpha(#ffffff, 0.50);
+  outline: none;
+}
+
+entry.psldm-entry > text {
+  background: none;
+  color: #ffffff;
+}
+
+entry.psldm-entry > text > placeholder {
+  color: alpha(#ffffff, 0.62);
+  opacity: 1;
+}
+
+entry.psldm-entry > image {
+  color: alpha(#ffffff, 0.8);
+  margin-left: 4px;
+}
+
+/* The line under the field. */
+.psldm-hint {
+  font-size: 13px;
+  margin-top: 12px;
+  color: alpha(#ffffff, 0.75);
+}
+
+.psldm-hint.error {
+  color: #ff8a80;
+}
+
+/* The row of users, and the row of power buttons. */
+.psldm-users {
+  margin-bottom: 8px;
+}
+
+button.psldm-user-button,
+button.psldm-power-button {
+  border: none;
+  outline: none;
+  border-radius: 22px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background-color: alpha(#ffffff, 0.16);
+  background-image: none;
+  box-shadow: none;
+  color: #ffffff;
+}
+
+button.psldm-user-button:hover,
+button.psldm-power-button:hover {
+  background-color: alpha(#ffffff, 0.28);
+}
+
+.psldm-bottom {
+  margin-bottom: 40px;
+}
+
+dropdown.psldm-session > button {
+  background: alpha(#ffffff, 0.16);
+  background-image: none;
+  color: #ffffff;
+  border-radius: 14px;
+  border: none;
+  box-shadow: none;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+/* The pane moves left and right one time after a failed attempt. */
+@keyframes psldm-shake {
+  0%   { margin-left: 0px;   margin-right: 0px; }
+  15%  { margin-left: -14px; margin-right: 14px; }
+  30%  { margin-left: 12px;  margin-right: -12px; }
+  45%  { margin-left: -8px;  margin-right: 8px; }
+  60%  { margin-left: 6px;   margin-right: -6px; }
+  75%  { margin-left: -3px;  margin-right: 3px; }
+  100% { margin-left: 0px;   margin-right: 0px; }
+}
+
+.psldm-shake {
+  animation: psldm-shake 420ms ease-in-out 1;
+}

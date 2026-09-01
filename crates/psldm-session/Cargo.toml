@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[package]
+name = "psldm-session"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "User and session information for PSLDM, from AccountsService and desktop files"
+
+[dependencies]
+freedesktop_entry_parser.workspace = true
+glob.workspace = true
+lru.workspace = true
+serde.workspace = true
+shlex.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tracing.workspace = true
+zbus.workspace = true

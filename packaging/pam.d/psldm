@@ -1,0 +1,13 @@
+# PAM configuration file for the PSLDM screen locker.
+# Install it at /etc/pam.d/psldm.
+#
+# The locker runs pam_authenticate and pam_acct_mgmt. Both the auth stack and
+# the account stack must exist here. A missing stack falls back to
+# /etc/pam.d/other, which denies the request after a correct password.
+#
+# The locker does not open a session, because the session already runs. It also
+# does not need root. pam_unix calls the setuid helper /usr/bin/unix_chkpwd to
+# read /etc/shadow.
+
+auth        include     login
+account     include     login
