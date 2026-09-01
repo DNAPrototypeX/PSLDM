@@ -51,12 +51,31 @@ it keeps a copy of every file that it replaces.
 
 | Option | What it adds |
 | --- | --- |
-| `--greeter` | The greetd files in `/etc/greetd` |
+| `--greeter` | The greetd files in `/etc/greetd`, and the monitor settings |
+| `--avatar PATH` | The picture of the user. Default `~/.face.icon`, then `~/.face` |
+| `--font NAME` | The font family. Default: the font of your desktop |
 | `--enable-greetd` | greetd starts at boot. This turns on `--greeter` |
 | `--prefix DIR` | Another place for the programs. Default `/usr/local` |
 | `--destdir DIR` | Every file under DIR, for a package build |
 | `--dry-run` | The steps only, with no change |
 | `--uninstall` | Removes the files and restores the copies |
+
+Two of those steps keep the greeter and the locker in step:
+
+- The script copies your avatar to `/var/lib/AccountsService/icons/<user>`.
+  The greeter runs as the user `greeter`, and it cannot read a home
+  directory with `700` permissions.
+- The script writes your desktop font family to `/etc/psldm/font`, and both
+  programs read that file. Each program otherwise takes the default font of
+  the user that runs it, and those differ. The font must live in a system
+  directory, because the greeter cannot read a home directory. The script
+  warns you when it does not.
+- With `--greeter`, the script writes the modes of the running desktop to
+  `/etc/psldm/monitors.conf`, and the greeter session reads that file. Without
+  it, a laptop panel starts at its preferred mode, which is often larger than
+  the mode the desktop uses, and the greeter looks smaller.
+
+Run the script again after you change a monitor or your avatar.
 
 Keep the old display manager until the greeter works. A greeter that fails on
 virtual terminal 1 leaves you with a text login. Test it first with

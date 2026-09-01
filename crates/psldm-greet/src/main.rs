@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 
 use psldm_auth::{demo, greetd};
 use psldm_session::constants::X11_CMD_PREFIX;
-use psldm_session::{Cache, LocalUser, SysUtil};
+use psldm_session::{Cache, LocalUser, SysUtil, settings};
 use psldm_ui::{AppSetup, HostKind, Mode, SessionChoice, UiConfig, UserInfo};
 
 /// The wallpaper for the greeter. The greeter user has no home directory.
@@ -194,6 +194,7 @@ fn build_setup(wallpaper: Option<PathBuf>, host: HostKind, system: System) -> Ap
         mode: Mode::Greet,
         config: UiConfig {
             wallpaper,
+            font: settings::font(),
             ..UiConfig::default()
         },
         user,

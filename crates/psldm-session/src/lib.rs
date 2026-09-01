@@ -12,6 +12,7 @@
 pub mod cache;
 pub mod constants;
 pub mod local;
+pub mod settings;
 pub mod sysutil;
 pub mod tomlutils;
 
