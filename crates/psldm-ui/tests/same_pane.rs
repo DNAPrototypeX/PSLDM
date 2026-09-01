@@ -98,11 +98,20 @@ struct Drawing {
 impl Drawing {
     fn new(mode: Mode, config: &UiConfig, user: &UserInfo) -> Self {
         let pane = LoginPane::new(mode, config, user);
+
+        // A window manager decides the size of a window, and two windows can
+        // differ. gtk::Fixed ignores its own size and gives the child the
+        // size that the child asks for, so both panes always lay out at the
+        // same size.
+        pane.widget().set_size_request(WIDTH, HEIGHT);
+        let holder = gtk::Fixed::new();
+        holder.put(pane.widget(), 0.0, 0.0);
+
         let window = gtk::Window::builder()
             .default_width(WIDTH)
             .default_height(HEIGHT)
             .decorated(false)
-            .child(pane.widget())
+            .child(&holder)
             .build();
         window.present();
         // A focused field draws a caret that blinks, so two drawings of one
@@ -123,7 +132,8 @@ impl Drawing {
         for _ in 0..MAX_TURNS {
             context.iteration(false);
 
-            if !self.pane.widget().is_mapped() || self.pane.widget().width() == 0 {
+            let widget = self.pane.widget();
+            if !widget.is_mapped() || widget.width() != WIDTH || widget.height() != HEIGHT {
                 continue;
             }
 
