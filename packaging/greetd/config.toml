@@ -1,0 +1,14 @@
+# greetd configuration for the PSLDM greeter.
+# Install it at /etc/greetd/config.toml.
+#
+# greetd runs as root. It owns PAM, and it starts the user session. The greeter
+# runs as the unprivileged user `greeter`.
+
+[terminal]
+vt = 1
+
+[default_session]
+# Hyprland gives the greeter the same compositor as the session. This keeps the
+# wallpaper, the animations, and the multiple monitors the same.
+command = "Hyprland --config /etc/greetd/hyprland.conf"
+user = "greeter"

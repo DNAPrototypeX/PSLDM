@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[package]
+name = "psldm-lock"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "The PSLDM screen locker"
+
+[dependencies]
+psldm-auth.workspace = true
+psldm-session.workspace = true
+psldm-ui.workspace = true
+rpassword = "7"
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
