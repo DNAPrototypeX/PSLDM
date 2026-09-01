@@ -74,6 +74,28 @@ while the field is empty.
 The compositor keeps the lock surface even if `psldm-lock` stops, so a crash
 does not open the session.
 
+## Tests
+
+```sh
+cargo test --workspace
+```
+
+The state machine tests need nothing. One test, `same_pane`, draws both modes
+and compares every pixel:
+
+1. It draws the locker pane twice and requires the same pixels, so that the
+   comparison means something.
+2. It requires the greeter to draw more than the locker.
+3. It hides the power buttons, the user row, and the session list, then
+   requires the two drawings to match exactly.
+
+A 3 pixel margin that only the greeter uses makes step 3 fail with about 4400
+different pixels.
+
+The test needs a Wayland or an X11 display, and it opens two windows for a
+moment. Without a display it reports the reason and stops. Set
+`PSLDM_TEST_DUMP` to a directory to save the drawings as PPM files.
+
 ## Crate layout
 
 `psldm-ui` holds the pane, the state machine, and `assets/style.css`. The two

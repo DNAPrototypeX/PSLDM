@@ -15,7 +15,7 @@ use gtk::glib;
 use gtk::prelude::*;
 
 use crate::state::{LoginState, MessageKind, Phase};
-use crate::{Mode, UiConfig};
+use crate::{Chrome, Mode, UiConfig};
 use crate::avatar::Avatar;
 use crate::background::Background;
 
@@ -72,7 +72,6 @@ pub struct LoginPane {
 impl LoginPane {
     /// Build the pane for one mode and one user.
     pub fn new(mode: Mode, config: &UiConfig, user: &UserInfo) -> Self {
-        let chrome = mode.chrome();
 
         let background = Background::new(config.wallpaper.as_deref(), config.blur, config.scrim);
 
@@ -108,16 +107,13 @@ impl LoginPane {
         let users_row = gtk::Box::new(gtk::Orientation::Horizontal, 24);
         users_row.set_halign(gtk::Align::Center);
         users_row.add_css_class("psldm-users");
-        users_row.set_visible(chrome.user_picker);
 
         let sessions = gtk::DropDown::from_strings(&[]);
         sessions.add_css_class("psldm-session");
-        sessions.set_visible(chrome.session_picker);
 
         let power_row = gtk::Box::new(gtk::Orientation::Horizontal, 18);
         power_row.set_halign(gtk::Align::Center);
         power_row.add_css_class("psldm-power-row");
-        power_row.set_visible(chrome.power_menu);
 
         sessions.set_halign(gtk::Align::Center);
 
@@ -139,7 +135,7 @@ impl LoginPane {
         overlay.add_overlay(&column);
         overlay.add_css_class("psldm-root");
 
-        Self {
+        let pane = Self {
             root: overlay.upcast(),
             clock_column: clock,
             center,
@@ -151,7 +147,18 @@ impl LoginPane {
             power_row,
             sessions,
             shake_source: Rc::new(RefCell::new(None)),
-        }
+        };
+        pane.set_chrome(mode.chrome());
+        pane
+    }
+
+    /// Show or hide the three parts that the mode owns.
+    ///
+    /// Everything else is the same in the greeter and in the locker.
+    pub fn set_chrome(&self, chrome: Chrome) {
+        self.users_row.set_visible(chrome.user_picker);
+        self.power_row.set_visible(chrome.power_menu);
+        self.sessions.set_visible(chrome.session_picker);
     }
 
     /// The widget to put in the window.
