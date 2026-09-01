@@ -40,29 +40,27 @@ demo backend.
 
 ## Install
 
-1. Run `sudo cp target/release/psldm-lock target/release/psldm-greet /usr/bin/`.
-2. Run `sudo cp packaging/pam.d/psldm /etc/pam.d/psldm`.
-3. Run `sudo mkdir -p /etc/psldm`, then link your wallpaper to
-   `/etc/psldm/wallpaper`.
-4. For the locker, source `packaging/hypr/psldm-lock.conf` from your Hyprland
-   configuration.
-5. For the greeter, install `greetd`, copy both files from
-   `packaging/greetd/` to `/etc/greetd/`, then run
-   `sudo systemctl enable --now greetd.service`.
+```sh
+./install.sh --wallpaper ~/.config/omarchy/current/background
+```
+
+That builds the release programs, puts them in `/usr/local/bin`, installs
+`/etc/pam.d/psldm`, and copies the wallpaper to `/etc/psldm/wallpaper`. The
+script calls `sudo` only for the steps that write outside the repository, and
+it keeps a copy of every file that it replaces.
+
+| Option | What it adds |
+| --- | --- |
+| `--greeter` | The greetd files in `/etc/greetd` |
+| `--enable-greetd` | greetd starts at boot. This turns on `--greeter` |
+| `--prefix DIR` | Another place for the programs. Default `/usr/local` |
+| `--destdir DIR` | Every file under DIR, for a package build |
+| `--dry-run` | The steps only, with no change |
+| `--uninstall` | Removes the files and restores the copies |
 
 Keep the old display manager until the greeter works. A greeter that fails on
-virtual terminal 1 leaves you with a text login.
-
-## The screen
-
-The screen has two phases, as macOS has.
-
-- The clock only. The wallpaper is sharp, with a dark layer over it.
-- The clock at the top, with the avatar, the name, and the field. The first
-  key opens this phase, and the field does not receive that key.
-
-The screen returns to the first phase after 30 seconds without a key, but only
-while the field is empty.
+virtual terminal 1 leaves you with a text login. Test it first with
+`psldm-greet --preview`.
 
 ## Surfaces
 
