@@ -21,7 +21,9 @@ psldm-session = { path = "crates/psldm-session" }
 psldm-ui = { path = "crates/psldm-ui" }
 
 freedesktop_entry_parser = "2.0.1"
-gtk = { version = "0.10", package = "gtk4", features = ["v4_12"] }
+gtk = { version = "0.11", package = "gtk4", features = ["v4_12"] }
+gtk4-layer-shell = "0.8"
+gtk4-session-lock = { version = "0.4", features = ["v1_1"] }
 glob = "0.3"
 greetd_ipc = { version = "0.10", features = ["tokio-codec"] }
 lru = "0.18"
