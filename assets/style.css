@@ -5,11 +5,21 @@
  * file, so the two screens match.
  */
 
+/* One font for every part of the pane.
+ *
+ * The greeter and the locker run as different users with different GTK
+ * settings, so the default font of each program is not the same. This rule
+ * names the family, and both programs then draw the same text.
+ *
+ * install.sh writes your system font to /etc/psldm/font, and that name
+ * replaces the family below. The font must live in a system directory,
+ * because the greeter cannot read a home directory. */
 window,
-.psldm-root {
+.psldm-root,
+popover {
   background: #101014;
   color: #ffffff;
-  font-family: "SF Pro Display", "SF Pro Text", Inter, Cantarell, sans-serif;
+  font-family: sans-serif;
 }
 
 /* The clock at the top of the screen. It moves down when the screen shows

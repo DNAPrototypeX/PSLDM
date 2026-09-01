@@ -95,13 +95,24 @@ impl SysUtil {
             let user_name = user_proxy.user_name().await?;
             let shell = user_proxy.shell().await?;
 
-            // An avatar is optional. A user without one keeps no entry.
-            match user_proxy.icon_file().await {
-                Ok(icon) if !icon.is_empty() => {
-                    avatars.insert(user_name.clone(), icon);
-                }
-                Ok(_) => (),
-                Err(err) => debug!("No avatar for {user_name}: {err}"),
+            // An avatar is optional. The readable copy comes first.
+            // AccountsService often reports a path inside a home directory,
+            // and the greeter runs as another user, so it cannot read that
+            // one. The property can even name a file that no longer exists.
+            let mut icon = crate::local::system_avatar(&user_name)
+                .map(|path| path.display().to_string());
+            if icon.is_none() {
+                icon = match user_proxy.icon_file().await {
+                    Ok(path) if !path.is_empty() && Path::new(&path).is_file() => Some(path),
+                    Ok(_) => None,
+                    Err(err) => {
+                        debug!("No avatar property for {user_name}: {err}");
+                        None
+                    }
+                };
+            }
+            if let Some(icon) = icon {
+                avatars.insert(user_name.clone(), icon);
             }
 
             shells.insert(user_name, shell);

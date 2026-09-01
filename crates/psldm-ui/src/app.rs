@@ -73,7 +73,7 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
 
     let activate_failed = Rc::clone(&failed);
     app.connect_activate(move |app| {
-        load_css();
+        load_css(setup.config.font.as_deref());
 
         let Some(backend) = backend.borrow_mut().take() else {
             // GTK activates a second time when the program starts again. One
@@ -281,9 +281,21 @@ fn send(sender: &psldm_auth::AuthSender, request: AuthRequest) {
 }
 
 /// Load the stylesheet that both programs share.
-fn load_css() {
+///
+/// `font` names the family for every part of the pane. The rule comes after
+/// the stylesheet, so it replaces the family there.
+fn load_css(font: Option<&str>) {
+    let mut style = crate::STYLE.to_string();
+    if let Some(font) = font.map(str::trim).filter(|font| !font.is_empty()) {
+        // A family name with a space needs quotation marks in CSS.
+        style.push_str(&format!(
+            "\nwindow, .psldm-root, popover {{ font-family: \"{}\"; }}\n",
+            font.replace('"', "")
+        ));
+    }
+
     let provider = gtk::CssProvider::new();
-    provider.load_from_string(crate::STYLE);
+    provider.load_from_string(&style);
 
     let Some(display) = gtk::gdk::Display::default() else {
         tracing::error!("No display. The stylesheet is not loaded.");

@@ -38,6 +38,9 @@ pub struct UiConfig {
     pub blur: f64,
     /// The opacity of the dark layer over the wallpaper, from 0.0 to 1.0.
     pub scrim: f64,
+    /// The font family for every part of the pane. `None` keeps the family
+    /// in the stylesheet.
+    pub font: Option<String>,
 }
 
 impl Default for UiConfig {
@@ -46,6 +49,7 @@ impl Default for UiConfig {
             wallpaper: None,
             blur: 0.0,
             scrim: 0.28,
+            font: None,
         }
     }
 }

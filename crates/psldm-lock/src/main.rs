@@ -17,7 +17,7 @@ use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 
 use psldm_auth::{AuthEvent, demo, pam};
-use psldm_session::LocalUser;
+use psldm_session::{LocalUser, settings};
 use psldm_ui::{AppSetup, HostKind, LoginState, Mode, UiAction, UiConfig, UserInfo};
 
 /// The file name in `/etc/pam.d`.
@@ -92,6 +92,7 @@ fn setup(wallpaper: Option<PathBuf>, host: HostKind) -> AppSetup {
         mode: Mode::Lock,
         config: UiConfig {
             wallpaper,
+            font: settings::font(),
             ..UiConfig::default()
         },
         user: UserInfo {

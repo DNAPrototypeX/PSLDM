@@ -67,15 +67,24 @@ impl LocalUser {
     }
 }
 
+/// The avatar that every program can read.
+///
+/// AccountsService keeps it in `/var/lib/AccountsService/icons`. That file is
+/// the only one that the greeter can read, because the greeter runs as
+/// another user and a home directory is often private.
+pub fn system_avatar(username: &str) -> Option<PathBuf> {
+    let path = PathBuf::from(ICON_DIR).join(username);
+    path.is_file().then_some(path)
+}
+
 /// Find the avatar of a user.
 ///
-/// AccountsService stores an avatar in `/var/lib/AccountsService/icons`. A
-/// user can also put one at `~/.face`.
+/// The system copy comes first. A user can also put one at `~/.face`.
 fn find_avatar(username: &str, home: &Path) -> Option<PathBuf> {
-    let candidates = [
-        PathBuf::from(ICON_DIR).join(username),
-        home.join(".face"),
-        home.join(".face.icon"),
-    ];
-    candidates.into_iter().find(|path| path.is_file())
+    if let Some(path) = system_avatar(username) {
+        return Some(path);
+    }
+    [home.join(".face"), home.join(".face.icon")]
+        .into_iter()
+        .find(|path| path.is_file())
 }
