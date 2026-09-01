@@ -18,8 +18,8 @@ pub mod host;
 pub mod pane;
 pub mod state;
 
-pub use app::{AppSetup, run};
-pub use host::HostKind;
+pub use app::{AppSetup, SessionChoice, run};
+pub use host::{HostError, HostKind, Surfaces};
 pub use pane::{LoginPane, PowerAction, UserInfo};
 pub use state::{LoginState, Message, MessageKind, Phase, Prompt, UiAction};
 

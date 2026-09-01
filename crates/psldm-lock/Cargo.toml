@@ -10,6 +10,7 @@ authors.workspace = true
 description = "The PSLDM screen locker"
 
 [dependencies]
+gtk.workspace = true
 psldm-auth.workspace = true
 psldm-session.workspace = true
 psldm-ui.workspace = true

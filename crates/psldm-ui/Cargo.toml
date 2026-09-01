@@ -11,5 +11,11 @@ description = "The shared user interface of the PSLDM greeter and locker"
 
 [dependencies]
 gtk.workspace = true
+gtk4-layer-shell.workspace = true
+gtk4-session-lock.workspace = true
 psldm-auth.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+gtk.workspace = true

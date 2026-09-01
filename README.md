@@ -23,19 +23,35 @@ cargo build --release
 cargo test --workspace
 ```
 
-## Test the current build
+## Run it
 
-The lock surface and the greeter surface arrive in milestone 4. Until then,
-both binaries open the pane in a normal window.
+| Command | What it does |
+| --- | --- |
+| `psldm-lock` | Locks the session with `ext-session-lock-v1` |
+| `psldm-greet` | Shows the greeter. greetd must start it |
+| `psldm-lock --preview [WALLPAPER]` | The pane in a normal window, demo password `pass` |
+| `psldm-greet --preview [WALLPAPER]` | The same, with the greeter parts |
+| `psldm-lock --check [USER]` | The real PAM stack, on the terminal |
+| `psldm-greet --users` | The users and the sessions that it finds |
 
-1. Run `cargo run -p psldm-lock -- --preview ~/.config/omarchy/current/background`.
-2. Press any key. The pane appears, and that first key does not reach the
-   field.
-3. Type `pass` and press Enter. The preview backend accepts only that word.
-4. Run `cargo run -p psldm-greet -- --preview <WALLPAPER>` to see the power
-   buttons, the user row, and the session list.
-5. Run `cargo run -p psldm-lock -- --check` to test the real PAM stack on the
-   terminal. Copy `packaging/pam.d/psldm` to `/etc/pam.d/psldm` first.
+Two more commands test the real surfaces inside a nested compositor:
+`psldm-lock --preview-lock` and `psldm-greet --preview-layer`. Both use the
+demo backend.
+
+## Install
+
+1. Run `sudo cp target/release/psldm-lock target/release/psldm-greet /usr/bin/`.
+2. Run `sudo cp packaging/pam.d/psldm /etc/pam.d/psldm`.
+3. Run `sudo mkdir -p /etc/psldm`, then link your wallpaper to
+   `/etc/psldm/wallpaper`.
+4. For the locker, source `packaging/hypr/psldm-lock.conf` from your Hyprland
+   configuration.
+5. For the greeter, install `greetd`, copy both files from
+   `packaging/greetd/` to `/etc/greetd/`, then run
+   `sudo systemctl enable --now greetd.service`.
+
+Keep the old display manager until the greeter works. A greeter that fails on
+virtual terminal 1 leaves you with a text login.
 
 ## The screen
 
@@ -47,6 +63,38 @@ The screen has two phases, as macOS has.
 
 The screen returns to the first phase after 30 seconds without a key, but only
 while the field is empty.
+
+## Surfaces
+
+| Program | Surface | Backend |
+| --- | --- | --- |
+| `psldm-greet` | `wlr-layer-shell` overlay, one for each monitor | greetd |
+| `psldm-lock` | `ext-session-lock-v1`, one for each monitor | PAM |
+
+The compositor keeps the lock surface even if `psldm-lock` stops, so a crash
+does not open the session.
+
+## Tests
+
+```sh
+cargo test --workspace
+```
+
+The state machine tests need nothing. One test, `same_pane`, draws both modes
+and compares every pixel:
+
+1. It draws the locker pane twice and requires the same pixels, so that the
+   comparison means something.
+2. It requires the greeter to draw more than the locker.
+3. It hides the power buttons, the user row, and the session list, then
+   requires the two drawings to match exactly.
+
+A 3 pixel margin that only the greeter uses makes step 3 fail with about 4400
+different pixels.
+
+The test needs a Wayland or an X11 display, and it opens two windows for a
+moment. Without a display it reports the reason and stops. Set
+`PSLDM_TEST_DUMP` to a directory to save the drawings as PPM files.
 
 ## Crate layout
 

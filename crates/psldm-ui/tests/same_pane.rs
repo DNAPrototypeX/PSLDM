@@ -1,0 +1,195 @@
+// SPDX-FileCopyrightText: 2026 Paul Moore
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+//! The proof that the greeter and the locker draw the same pane.
+//!
+//! The test builds one pane for each mode, hides the three parts that the
+//! greeter owns, draws both, and compares every pixel. A change that only one
+//! mode shows makes this test fail.
+//!
+//! The test needs a Wayland or an X11 display, because GTK draws with the
+//! graphics driver. Without a display the test reports the reason and stops.
+
+use gtk::prelude::*;
+use psldm_ui::{Chrome, LoginPane, Mode, UiConfig, UserInfo};
+
+/// The width of the drawing, in pixels.
+const WIDTH: i32 = 1280;
+
+/// The height of the drawing, in pixels.
+const HEIGHT: i32 = 800;
+
+/// The limit on main loop turns while the test waits for the first frame.
+const MAX_TURNS: usize = 2000;
+
+/// Nothing that the greeter owns is visible during the comparison.
+const NO_CHROME: Chrome = Chrome {
+    power_menu: false,
+    user_picker: false,
+    session_picker: false,
+};
+
+/// One test holds both checks, because GTK must stay on one thread and the
+/// test harness gives each test its own thread.
+#[test]
+fn the_two_modes_draw_the_same_pane() {
+    if !start_gtk() {
+        return;
+    }
+
+    let config = UiConfig::default();
+    let user = test_user();
+
+    // Both panes must exist before either one draws, so that the clock shows
+    // the same minute in both.
+    let lock = Drawing::new(Mode::Lock, &config, &user);
+    let greet = Drawing::new(Mode::Greet, &config, &user);
+
+    // One pane must draw the same pixels twice. Without this check, a change
+    // between two drawings would hide a real difference.
+    let unstable = count_different(&lock.pixels(), &lock.pixels());
+    assert_eq!(
+        unstable, 0,
+        "One pane drew {unstable} different pixels twice. The comparison \
+         below cannot mean anything until this is 0."
+    );
+
+    // The greeter must draw more than the locker. Without this check, a pane
+    // that draws nothing would pass the comparison below.
+    let with_chrome = count_different(&lock.pixels(), &greet.pixels());
+    dump("lock", &lock.pixels(), WIDTH as usize, HEIGHT as usize);
+    dump("greet-chrome", &greet.pixels(), WIDTH as usize, HEIGHT as usize);
+    assert!(
+        with_chrome > 0,
+        "The greeter must show the power buttons, the user row, and the \
+         session list."
+    );
+
+    // Hide the three parts that the greeter owns. Everything else must match.
+    greet.pane.set_chrome(NO_CHROME);
+    let lock_pixels = lock.pixels();
+    let greet_pixels = greet.pixels();
+    dump("lock-2", &lock_pixels, WIDTH as usize, HEIGHT as usize);
+    dump("greet-plain", &greet_pixels, WIDTH as usize, HEIGHT as usize);
+    let different = count_different(&lock_pixels, &greet_pixels);
+    assert_eq!(
+        different, 0,
+        "The two modes drew {different} different pixels. Only the power \
+         buttons, the user row, and the session list may differ, and this \
+         comparison hides all three."
+    );
+}
+
+fn test_user() -> UserInfo {
+    UserInfo {
+        username: "tester".into(),
+        display_name: "Test User".into(),
+        avatar: None,
+    }
+}
+
+/// One pane in one window, ready to draw.
+struct Drawing {
+    pane: LoginPane,
+    window: gtk::Window,
+}
+
+impl Drawing {
+    fn new(mode: Mode, config: &UiConfig, user: &UserInfo) -> Self {
+        let pane = LoginPane::new(mode, config, user);
+        let window = gtk::Window::builder()
+            .default_width(WIDTH)
+            .default_height(HEIGHT)
+            .decorated(false)
+            .child(pane.widget())
+            .build();
+        window.present();
+        // A focused field draws a caret that blinks, so two drawings of one
+        // pane would differ. No pane holds the focus during the test.
+        gtk::prelude::RootExt::set_focus(&window, gtk::Widget::NONE);
+
+        Self { pane, window }
+    }
+
+    /// Draw the pane and read the pixels.
+    ///
+    /// GTK draws when its main loop runs, so the method turns the loop until
+    /// the pane produces a drawing.
+    fn pixels(&self) -> Vec<u8> {
+        let context = gtk::glib::MainContext::default();
+        let paintable = gtk::WidgetPaintable::new(Some(self.pane.widget()));
+
+        for _ in 0..MAX_TURNS {
+            context.iteration(false);
+
+            if !self.pane.widget().is_mapped() || self.pane.widget().width() == 0 {
+                continue;
+            }
+
+            let snapshot = gtk::Snapshot::new();
+            paintable.snapshot(&snapshot, f64::from(WIDTH), f64::from(HEIGHT));
+            let Some(node) = snapshot.to_node() else {
+                continue;
+            };
+
+            let renderer = self
+                .window
+                .native()
+                .and_then(|native| native.renderer())
+                .expect("the window has no renderer");
+            let texture = renderer.render_texture(&node, None);
+
+            let width = texture.width() as usize;
+            let height = texture.height() as usize;
+            let stride = width * 4;
+            let mut pixels = vec![0u8; stride * height];
+            texture.download(&mut pixels, stride);
+            return pixels;
+        }
+
+        panic!("The pane drew nothing. Is the window on the screen?");
+    }
+}
+
+/// Start GTK. Returns `false` when the test must stop.
+fn start_gtk() -> bool {
+    if std::env::var_os("WAYLAND_DISPLAY").is_none() && std::env::var_os("DISPLAY").is_none() {
+        println!("Skipped: no Wayland display and no X11 display.");
+        return false;
+    }
+    if gtk::init().is_err() {
+        println!("Skipped: GTK cannot open the display.");
+        return false;
+    }
+    if let Some(settings) = gtk::Settings::default() {
+        settings.set_gtk_cursor_blink(false);
+    }
+    true
+}
+
+/// Save both drawings and their difference, for a failure that needs eyes.
+///
+/// Set `PSLDM_TEST_DUMP` to a directory to turn this on.
+fn dump(name: &str, pixels: &[u8], width: usize, height: usize) {
+    let Some(directory) = std::env::var_os("PSLDM_TEST_DUMP") else {
+        return;
+    };
+    let path = std::path::Path::new(&directory).join(format!("{name}.ppm"));
+    let mut data = format!("P6\n{width} {height}\n255\n").into_bytes();
+    for pixel in pixels.chunks_exact(4) {
+        data.extend_from_slice(&pixel[0..3]);
+    }
+    if let Err(err) = std::fs::write(&path, data) {
+        println!("Cannot write {}: {err}", path.display());
+    }
+}
+
+/// Count the pixels that differ.
+fn count_different(left: &[u8], right: &[u8]) -> usize {
+    assert_eq!(left.len(), right.len(), "The two drawings differ in size.");
+    left.chunks_exact(4)
+        .zip(right.chunks_exact(4))
+        .filter(|(left, right)| left != right)
+        .count()
+}
