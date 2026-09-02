@@ -147,7 +147,7 @@ and compares every pixel:
 
 1. It draws one pane twice and requires the same pixels, so that the
    comparison means something.
-2. It requires a new pane to draw the clock only.
+2. It requires a new pane to draw the idle phase, with no field.
 3. It requires the greeter to draw more than the locker.
 4. It hides the three greeter parts, then requires an exact match.
 
