@@ -88,13 +88,20 @@ impl LoginPane {
         entry.set_input_purpose(gtk::InputPurpose::Password);
         entry.set_secondary_icon_name(Some("go-next-symbolic"));
         entry.set_secondary_icon_activatable(true);
-        entry.set_placeholder_text(Some("Enter Password"));
+        entry.set_placeholder_text(Some("Password"));
         gtk::prelude::EditableExt::set_alignment(&entry, 0.5);
         entry.set_max_width_chars(18);
 
         let hint = gtk::Label::new(None);
         hint.add_css_class("psldm-hint");
 
+        let users_row = gtk::Box::new(gtk::Orientation::Horizontal, 20);
+        users_row.set_halign(gtk::Align::Center);
+        users_row.add_css_class("psldm-users");
+
+        // The picker holds the avatar and the name. The field joins it when
+        // the user presses a key, and the whole column then moves up a
+        // little, because a centre box grows in both directions.
         let center = gtk::Box::new(gtk::Orientation::Vertical, 0);
         center.add_css_class("psldm-login");
         center.set_halign(gtk::Align::Center);
@@ -103,26 +110,23 @@ impl LoginPane {
         center.append(&name);
         center.append(&entry);
         center.append(&hint);
-
-        let users_row = gtk::Box::new(gtk::Orientation::Horizontal, 24);
-        users_row.set_halign(gtk::Align::Center);
-        users_row.add_css_class("psldm-users");
+        center.append(&users_row);
 
         let sessions = gtk::DropDown::from_strings(&[]);
         sessions.add_css_class("psldm-session");
+        sessions.set_valign(gtk::Align::Center);
 
-        let power_row = gtk::Box::new(gtk::Orientation::Horizontal, 18);
-        power_row.set_halign(gtk::Align::Center);
+        let power_row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         power_row.add_css_class("psldm-power-row");
+        power_row.set_valign(gtk::Align::Center);
 
-        sessions.set_halign(gtk::Align::Center);
-
-        let bottom = gtk::Box::new(gtk::Orientation::Vertical, 14);
+        // The bottom bar holds the power buttons on the left and the session
+        // list on the right, as macOS does.
+        let bottom = gtk::CenterBox::new();
         bottom.add_css_class("psldm-bottom");
         bottom.set_valign(gtk::Align::End);
-        bottom.append(&users_row);
-        bottom.append(&power_row);
-        bottom.append(&sessions);
+        bottom.set_start_widget(Some(&power_row));
+        bottom.set_end_widget(Some(&sessions));
 
         let column = gtk::CenterBox::new();
         column.set_orientation(gtk::Orientation::Vertical);
@@ -156,12 +160,15 @@ impl LoginPane {
         pane
     }
 
-    /// Show the clock only, or the whole pane.
+    /// Show the picker only, or the picker with the field.
     pub fn set_phase(&self, phase: Phase) {
         let idle = phase == Phase::Idle;
         set_css_class(&self.clock_column, "idle", idle);
         set_css_class(&self.center, "idle", idle);
-        self.center.set_can_target(!idle);
+
+        // The field leaves the layout, so the picker moves back down.
+        self.entry.set_visible(!idle);
+        self.hint.set_visible(!idle);
     }
 
     /// Show or hide the three parts that the mode owns.
@@ -237,7 +244,7 @@ impl LoginPane {
             Some(prompt) => {
                 let label = prompt.text.trim_end_matches([':', ' ']);
                 self.entry.set_placeholder_text(Some(if prompt.secret {
-                    "Enter Password"
+                    "Password"
                 } else {
                     label
                 }));
@@ -279,7 +286,10 @@ impl LoginPane {
     }
 
     /// Fill the user row. The locker keeps the row hidden.
+    ///
+    /// One user needs no row. The pane already shows that user.
     pub fn set_users(&self, users: &[UserInfo], on_select: impl Fn(&UserInfo) + Clone + 'static) {
+        self.users_row.set_visible(users.len() > 1);
         while let Some(child) = self.users_row.first_child() {
             self.users_row.remove(&child);
         }
