@@ -5,12 +5,11 @@ Paul's Screen Locker and Display Manager: one login screen for both jobs.
 The greeter logs you in. The locker unlocks the session you already have.
 Both draw the same pane from the same code, so the two screens match. The
 greeter adds a user row, two power buttons, and a session list. Nothing else
-differs, and a test compares the two pane by pane.
+differs.
 
 ![The locker and the greeter, side by side](docs/comparison.png)
 
 ## Install
-
 Arch Linux:
 
 ```sh
