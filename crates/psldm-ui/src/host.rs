@@ -15,6 +15,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use gtk::gio::ApplicationHoldGuard;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use gtk4_session_lock::Instance as SessionLock;
@@ -53,6 +54,8 @@ pub struct Surfaces {
     panes: Vec<Rc<LoginPane>>,
     windows: Vec<gtk::Window>,
     lock: Option<SessionLock>,
+    /// Keeps the program alive while no window belongs to the application.
+    _hold: Option<ApplicationHoldGuard>,
     /// The compositor ended the lock, or it never started it.
     failed: Rc<Cell<bool>>,
 }
@@ -80,6 +83,13 @@ impl Surfaces {
     /// The pane on each monitor.
     pub fn panes(&self) -> &[Rc<LoginPane>] {
         &self.panes
+    }
+
+    /// Report whether the surfaces still belong to a window.
+    ///
+    /// The session-lock library destroys its windows when the lock ends.
+    pub fn are_on_screen(&self) -> bool {
+        self.panes.iter().any(|pane| pane.is_on_screen())
     }
 
     /// Report whether the lock failed.
@@ -134,6 +144,7 @@ fn preview(app: &gtk::Application, make_pane: &dyn Fn() -> LoginPane) -> Surface
         panes: vec![pane],
         windows: vec![window.upcast()],
         lock: None,
+        _hold: None,
         failed: Rc::new(Cell::new(false)),
     }
 }
@@ -173,6 +184,7 @@ fn layer_shell(
         panes,
         windows,
         lock: None,
+        _hold: None,
         failed: Rc::new(Cell::new(false)),
     })
 }
@@ -203,7 +215,10 @@ fn session_lock(
     let unlocked_app = app.clone();
     lock.connect_unlocked(move |_| {
         tracing::info!("The session is unlocked");
-        unlocked_app.quit();
+        // The library destroys the windows while this signal runs. Leave the
+        // main loop on the next turn, so that the work finishes first.
+        let app = unlocked_app.clone();
+        gtk::glib::idle_add_local_once(move || app.quit());
     });
 
     if !lock.lock() {
@@ -213,26 +228,31 @@ fn session_lock(
     let mut panes = Vec::new();
     let mut windows = Vec::new();
 
+    // A lock surface must not belong to the application. The library calls
+    // gtk_window_destroy on every window when the lock ends, and the
+    // application handles that signal for its own windows. That handler
+    // crashed the program. A hold keeps the program alive instead.
+    let hold = app.hold();
+
     // Each window must be new and unrealized here. The library maps it, and
     // it destroys the window when the lock ends.
     for monitor in monitors {
         let pane = Rc::new(make_pane());
-        let window = gtk::ApplicationWindow::builder()
-            .application(app)
-            .child(pane.widget())
-            .build();
+        let window = gtk::Window::new();
+        window.set_child(Some(pane.widget()));
 
         lock.assign_window_to_monitor(&window, &monitor);
         window.present();
 
         panes.push(pane);
-        windows.push(window.upcast());
+        windows.push(window);
     }
 
     Ok(Surfaces {
         panes,
         windows,
         lock: Some(lock),
+        _hold: Some(hold),
         failed,
     })
 }

@@ -304,22 +304,40 @@ for monitor in monitors:
 '
 }
 
+# The greeter writes the last user and the last session here. Without the
+# directory it offers the first session in the list every time.
+install_state_dir() {
+    [[ "$WITH_GREETER" -eq 1 ]] || return 0
+
+    say "Making the state directory /var/lib/psldm"
+    run install -d -m 755 "$(target /var/lib/psldm)"
+    if [[ -z "$DESTDIR" ]] && id greeter >/dev/null 2>&1; then
+        run chown greeter:greeter "$(target /var/lib/psldm)"
+    fi
+}
+
 install_greeter() {
     [[ "$WITH_GREETER" -eq 1 ]] || return 0
     say "Installing the greetd files in /etc/greetd"
 
     back_up "$(target /etc/greetd/config.toml)"
     back_up "$(target /etc/greetd/hyprland.conf)"
-    run install -Dm644 "$REPO/packaging/greetd/config.toml" \
-        "$(target /etc/greetd/config.toml)"
 
-    # The greeter session must call the program where this script put it.
+    # Every file must name the programs where this script put them.
     local temporary
     temporary="$(mktemp)"
+
+    sed "s|/usr/bin/psldm-greeter-session|$PREFIX/bin/psldm-greeter-session|" \
+        "$REPO/packaging/greetd/config.toml" > "$temporary"
+    run install -Dm644 "$temporary" "$(target /etc/greetd/config.toml)"
+
     sed "s|/usr/bin/psldm-greet|$PREFIX/bin/psldm-greet|" \
         "$REPO/packaging/greetd/hyprland.conf" > "$temporary"
     run install -Dm644 "$temporary" "$(target /etc/greetd/hyprland.conf)"
+
     rm -f "$temporary"
+    run install -Dm755 "$REPO/packaging/greetd/greeter-session" \
+        "$(target "$PREFIX/bin/psldm-greeter-session")"
 }
 
 enable_greetd() {
@@ -359,10 +377,12 @@ uninstall() {
     local path
     for path in "$(target "$PREFIX/bin/psldm-lock")" \
                 "$(target "$PREFIX/bin/psldm-greet")" \
+                "$(target "$PREFIX/bin/psldm-greeter-session")" \
                 "$(target /etc/pam.d/psldm)" \
                 "$(target /etc/psldm/wallpaper)" \
                 "$(target /etc/psldm/monitors.conf)" \
                 "$(target /etc/psldm/font)" \
+                "$(target /var/lib/psldm/state.toml)" \
                 "$(target "/var/lib/AccountsService/icons/$(current_user)")" \
                 "$(target /etc/greetd/hyprland.conf)" \
                 "$(target /etc/greetd/config.toml)"; do
@@ -375,8 +395,11 @@ uninstall() {
         fi
     done
 
-    # The wallpaper is the only file in this directory.
-    run rmdir --ignore-fail-on-non-empty "$(target /etc/psldm)" 2>/dev/null || true
+    # These directories hold nothing else.
+    local directory
+    for directory in "$(target /etc/psldm)" "$(target /var/lib/psldm)"; do
+        run rmdir --ignore-fail-on-non-empty "$directory" 2>/dev/null || true
+    done
 
     say ""
     say "greetd still starts at boot. Turn it off with:"
@@ -403,6 +426,7 @@ main() {
     install_avatar
     install_font
     install_monitors
+    install_state_dir
     install_greeter
     enable_greetd
     report

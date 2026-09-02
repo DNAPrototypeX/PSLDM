@@ -28,6 +28,9 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often the program looks at the quiet period.
 const IDLE_CHECK_SECONDS: u32 = 5;
 
+/// What the greeter calls to keep the user name and the session name.
+pub type RememberChoice = Box<dyn Fn(&str, &str)>;
+
 /// One session that the greeter can start.
 #[derive(Debug, Clone)]
 pub struct SessionChoice {
@@ -51,6 +54,12 @@ pub struct AppSetup {
     pub users: Vec<UserInfo>,
     /// Every session that the greeter offers. The locker leaves this empty.
     pub sessions: Vec<SessionChoice>,
+    /// The session to select at the start, such as the last one that the
+    /// user started. An unknown name selects the first session.
+    pub selected_session: Option<String>,
+    /// Keep the user name and the session name for the next login. The
+    /// greeter writes them to disk, so that the same choice comes back.
+    pub remember: Option<RememberChoice>,
     /// Extra variables for the new session, as `KEY=VALUE`.
     pub environment: Vec<String>,
     /// The command that restarts the computer.
@@ -73,7 +82,7 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
 
     let activate_failed = Rc::clone(&failed);
     app.connect_activate(move |app| {
-        load_css(setup.config.font.as_deref());
+        load_style(setup.config.font.as_deref());
 
         let Some(backend) = backend.borrow_mut().take() else {
             // GTK activates a second time when the program starts again. One
@@ -96,6 +105,10 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
             setup.mode,
             setup.user.username.clone(),
         )));
+
+        // Draw the first state before anything else, so that no frame shows
+        // a pane that the state machine has not approved.
+        surfaces.render(&state.borrow());
 
         if setup.mode == Mode::Greet {
             fill_greeter(&setup, &surfaces, &state);
@@ -142,6 +155,11 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
         let idle_surfaces = Rc::clone(&surfaces);
         let idle_clock = Rc::clone(&last_input);
         glib::timeout_add_seconds_local(IDLE_CHECK_SECONDS, move || {
+            // Stop with the surfaces. The lock host destroys its windows when
+            // the lock ends.
+            if !idle_surfaces.are_on_screen() {
+                return glib::ControlFlow::Break;
+            }
             if idle_clock.get().elapsed() >= IDLE_TIMEOUT && idle_surfaces.fields_are_empty() {
                 let changed = idle_state.borrow_mut().sleep();
                 if changed {
@@ -177,13 +195,19 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
                     }
                     UiAction::StartSession => {
                         match chosen_session(&loop_setup, &loop_surfaces) {
-                            Some(command) => send(
-                                &loop_sender,
-                                AuthRequest::StartSession {
-                                    command,
-                                    environment: loop_setup.environment.clone(),
-                                },
-                            ),
+                            Some(session) => {
+                                if let Some(remember) = &loop_setup.remember {
+                                    let username = loop_state.borrow().username.clone();
+                                    remember(&username, &session.name);
+                                }
+                                send(
+                                    &loop_sender,
+                                    AuthRequest::StartSession {
+                                        command: session.command.clone(),
+                                        environment: loop_setup.environment.clone(),
+                                    },
+                                );
+                            }
                             None => tracing::error!("No session is selected"),
                         }
                     }
@@ -218,6 +242,9 @@ fn fill_greeter(setup: &Rc<AppSetup>, surfaces: &Rc<Surfaces>, state: &Rc<RefCel
 
     for pane in surfaces.panes() {
         pane.set_sessions(&names);
+        if let Some(name) = &setup.selected_session {
+            pane.select_session(name);
+        }
 
         let select_state = Rc::clone(state);
         let select_surfaces = Rc::clone(surfaces);
@@ -241,23 +268,19 @@ fn fill_greeter(setup: &Rc<AppSetup>, surfaces: &Rc<Surfaces>, state: &Rc<RefCel
     }
 }
 
-/// The command of the session that the user selected.
-fn chosen_session(setup: &Rc<AppSetup>, surfaces: &Rc<Surfaces>) -> Option<Vec<String>> {
+/// The session that the user selected.
+fn chosen_session<'a>(
+    setup: &'a Rc<AppSetup>,
+    surfaces: &Rc<Surfaces>,
+) -> Option<&'a SessionChoice> {
     let selected = surfaces
         .panes()
         .iter()
         .find_map(|pane| pane.selected_session());
 
     match selected {
-        Some(name) => setup
-            .sessions
-            .iter()
-            .find(|session| session.name == name)
-            .map(|session| session.command.clone()),
-        None => setup
-            .sessions
-            .first()
-            .map(|session| session.command.clone()),
+        Some(name) => setup.sessions.iter().find(|session| session.name == name),
+        None => setup.sessions.first(),
     }
 }
 
@@ -284,7 +307,10 @@ fn send(sender: &psldm_auth::AuthSender, request: AuthRequest) {
 ///
 /// `font` names the family for every part of the pane. The rule comes after
 /// the stylesheet, so it replaces the family there.
-fn load_css(font: Option<&str>) {
+///
+/// A test calls this as well, so that it draws the pane the way a user sees
+/// it.
+pub fn load_style(font: Option<&str>) {
     let mut style = crate::STYLE.to_string();
     if let Some(font) = font.map(str::trim).filter(|font| !font.is_empty()) {
         // A family name with a space needs quotation marks in CSS.

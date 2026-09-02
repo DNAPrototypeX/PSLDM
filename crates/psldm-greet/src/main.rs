@@ -13,6 +13,7 @@
 //!   compositor to test that surface.
 //! - `psldm-greet --users` lists the users and the sessions that it finds.
 
+use std::cell::RefCell;
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -104,6 +105,7 @@ struct System {
     users: Vec<UserInfo>,
     sessions: Vec<SessionChoice>,
     last_user: Option<String>,
+    last_session: Option<String>,
 }
 
 /// Read the users and the sessions.
@@ -116,8 +118,12 @@ async fn read_system() -> System {
         .map(String::from)
         .collect();
 
-    let cache = Cache::new();
+    let mut cache = Cache::new();
     let last_user = cache.get_last_user().map(str::to_string);
+    let last_session = last_user
+        .as_deref()
+        .and_then(|user| cache.get_last_session(user))
+        .map(str::to_string);
 
     match SysUtil::new(&x11_prefix).await {
         Ok(sysutil) => {
@@ -146,6 +152,7 @@ async fn read_system() -> System {
                 users,
                 sessions,
                 last_user,
+                last_session,
             }
         }
         Err(err) => {
@@ -154,6 +161,7 @@ async fn read_system() -> System {
                 users: LocalUser::current().map(local_user).into_iter().collect(),
                 sessions: Vec::new(),
                 last_user,
+                last_session,
             }
         }
     }
@@ -173,6 +181,7 @@ fn build_setup(wallpaper: Option<PathBuf>, host: HostKind, system: System) -> Ap
         users,
         sessions,
         last_user,
+        last_session,
     } = system;
 
     let user = last_user
@@ -200,11 +209,36 @@ fn build_setup(wallpaper: Option<PathBuf>, host: HostKind, system: System) -> Ap
         user,
         users,
         sessions,
+        selected_session: last_session,
+        remember: Some(Box::new(remember_choice)),
         environment: Vec::new(),
         reboot: vec!["systemctl".into(), "reboot".into()],
         poweroff: vec!["systemctl".into(), "poweroff".into()],
         host,
     }
+}
+
+/// Keep the user name and the session name for the next login.
+///
+/// Without this file the greeter offers the first session in the list, and
+/// that is often not the one the user wants. On this desktop the plain
+/// Hyprland session starts no user services, and the uwsm session does.
+fn remember_choice(username: &str, session: &str) {
+    thread_local! {
+        static CACHE: RefCell<Cache> = RefCell::new(Cache::new());
+    }
+
+    CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.set_last_user(username);
+        cache.set_last_session(username, session);
+        if let Err(err) = cache.save() {
+            // A greeter that cannot write its cache still logs the user in.
+            tracing::warn!("Cannot save the choice: {err}");
+        } else {
+            tracing::info!("Saved the choice: {username} with {session}");
+        }
+    });
 }
 
 /// Print what the greeter finds on this computer.

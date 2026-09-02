@@ -105,6 +105,8 @@ fn setup(wallpaper: Option<PathBuf>, host: HostKind) -> AppSetup {
         },
         users: Vec::new(),
         sessions: Vec::new(),
+        selected_session: None,
+        remember: None,
         environment: Vec::new(),
         reboot: Vec::new(),
         poweroff: Vec::new(),

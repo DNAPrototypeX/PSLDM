@@ -8,7 +8,8 @@
 vt = 1
 
 [default_session]
-# Hyprland gives the greeter the same compositor as the session. The greeter
-# then covers every monitor with one layer-shell surface.
-command = "Hyprland --config /etc/greetd/hyprland.conf"
+# The script starts Hyprland, which holds the greeter. It also erases the
+# console when the compositor stops, so that the login does not show a text
+# screen before the session starts.
+command = "/usr/bin/psldm-greeter-session"
 user = "greeter"

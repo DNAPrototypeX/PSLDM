@@ -134,24 +134,32 @@ impl SysUtil {
         let mut found_session_names = HashSet::new();
         let mut sessions = HashMap::new();
 
-        // Use the XDG spec if available, else use the one that's compiled.
-        // The XDG env var can change after compilation in some distros like NixOS.
-        let session_dirs = if let Ok(sess_parent_dirs) = env::var(XDG_DIR_ENV_VAR) {
-            debug!("Found XDG env var {XDG_DIR_ENV_VAR}: {sess_parent_dirs}");
-            match sess_parent_dirs
-                .split(':')
-                .map(|parent_dir| format!("{parent_dir}/xsessions:{parent_dir}/wayland-sessions"))
-                .reduce(|a, b| a + ":" + &b)
-            {
-                None => SESSION_DIRS.to_string(),
-                Some(dirs) => dirs,
-            }
-        } else {
-            SESSION_DIRS.to_string()
-        };
+        // The XDG variable comes first, and the compiled list follows. The
+        // greeter often runs with no XDG_DATA_DIRS, and a session file in
+        // /usr/local/share would then stay hidden.
+        let mut session_dirs: Vec<String> = Vec::new();
+        let mut seen = HashSet::new();
 
-        for sess_dir in session_dirs.split(':') {
-            let sess_dir_path = Path::new(sess_dir);
+        if let Ok(parent_dirs) = env::var(XDG_DIR_ENV_VAR) {
+            debug!("Found XDG env var {XDG_DIR_ENV_VAR}: {parent_dirs}");
+            for parent in parent_dirs.split(':').filter(|dir| !dir.is_empty()) {
+                for kind in ["xsessions", "wayland-sessions"] {
+                    let dir = format!("{parent}/{kind}");
+                    if seen.insert(dir.clone()) {
+                        session_dirs.push(dir);
+                    }
+                }
+            }
+        }
+
+        for dir in SESSION_DIRS.split(':').map(str::trim) {
+            if !dir.is_empty() && seen.insert(dir.to_string()) {
+                session_dirs.push(dir.to_string());
+            }
+        }
+
+        for sess_dir in &session_dirs {
+            let sess_dir_path = Path::new(sess_dir.as_str());
             let sess_parent_dir = if let Some(sess_parent_dir) = sess_dir_path.parent() {
                 sess_parent_dir
             } else {
