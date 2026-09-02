@@ -9,10 +9,16 @@
 //! that both programs can read.
 
 use std::fs::read_to_string;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The file that holds the font family.
 const FONT_PATH: &str = "/etc/psldm/font";
+
+/// The wallpaper that `install.sh` copies for every user.
+const SYSTEM_WALLPAPER: &str = "/etc/psldm/wallpaper";
+
+/// The environment variable that replaces the wallpaper file.
+const WALLPAPER_ENV: &str = "PSLDM_WALLPAPER";
 
 /// The environment variable that replaces the font file. It helps a test.
 const FONT_ENV: &str = "PSLDM_FONT";
@@ -35,4 +41,27 @@ fn read_setting(path: &str) -> Option<String> {
     let text = read_to_string(Path::new(path)).ok()?;
     let value = text.trim();
     (!value.is_empty()).then(|| value.to_string())
+}
+
+/// The wallpaper for the pane, or `None` when there is no image.
+///
+/// The order is the environment variable, then the file of the user, then
+/// the file for the whole computer. The greeter runs as another user with no
+/// home directory, so it reaches the last one.
+pub fn wallpaper() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os(WALLPAPER_ENV) {
+        let path = PathBuf::from(path);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    let user_file = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|home| home.join(".config/psldm/wallpaper"));
+
+    user_file
+        .into_iter()
+        .chain([PathBuf::from(SYSTEM_WALLPAPER)])
+        .find(|path| path.is_file())
 }

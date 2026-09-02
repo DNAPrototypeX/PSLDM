@@ -12,7 +12,7 @@
 //! graphics driver. Without a display the test reports the reason and stops.
 
 use gtk::prelude::*;
-use psldm_ui::{Chrome, LoginPane, Mode, UiConfig, UserInfo};
+use psldm_ui::{Chrome, LoginPane, Mode, Phase, UiConfig, UserInfo};
 
 /// The width of the drawing, in pixels.
 const WIDTH: i32 = 1280;
@@ -54,6 +54,28 @@ fn the_two_modes_draw_the_same_pane() {
         "One pane drew {unstable} different pixels twice. The comparison \
          below cannot mean anything until this is 0."
     );
+
+    // A new pane must already show the clock only. The state machine starts
+    // in Phase::Idle, and a pane that starts anywhere else shows the field
+    // for one frame and then fades it away.
+    let fresh = lock.pixels();
+    lock.pane.set_phase(Phase::Idle);
+    assert_eq!(
+        count_different(&fresh, &lock.pixels()),
+        0,
+        "A new pane does not draw the idle phase."
+    );
+
+    lock.pane.set_phase(Phase::Active);
+    assert!(
+        count_different(&fresh, &lock.pixels()) > 0,
+        "The pane looks the same in both phases."
+    );
+
+    // Compare the two modes with the whole pane on the screen. The idle
+    // phase hides the avatar, the name, and the field, and a difference
+    // there would stay invisible.
+    greet.pane.set_phase(Phase::Active);
 
     // The greeter must draw more than the locker. Without this check, a pane
     // that draws nothing would pass the comparison below.
@@ -126,6 +148,7 @@ impl Drawing {
     /// GTK draws when its main loop runs, so the method turns the loop until
     /// the pane produces a drawing.
     fn pixels(&self) -> Vec<u8> {
+        settle();
         let context = gtk::glib::MainContext::default();
         let paintable = gtk::WidgetPaintable::new(Some(self.pane.widget()));
 
@@ -162,6 +185,19 @@ impl Drawing {
     }
 }
 
+/// Run the main loop for a moment.
+///
+/// GTK applies a style change and draws in a frame, and a frame comes from a
+/// timer. Reading the pixels at once would give the state before the change.
+fn settle() {
+    let main_loop = gtk::glib::MainLoop::new(None, false);
+    let stop = main_loop.clone();
+    gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(150), move || {
+        stop.quit();
+    });
+    main_loop.run();
+}
+
 /// Start GTK. Returns `false` when the test must stop.
 fn start_gtk() -> bool {
     if std::env::var_os("WAYLAND_DISPLAY").is_none() && std::env::var_os("DISPLAY").is_none() {
@@ -174,7 +210,14 @@ fn start_gtk() -> bool {
     }
     if let Some(settings) = gtk::Settings::default() {
         settings.set_gtk_cursor_blink(false);
+        // A CSS transition needs time, and the test reads the pixels at once.
+        // Without this the pane still shows the state before the change.
+        settings.set_gtk_enable_animations(false);
     }
+
+    // The pane needs the same stylesheet that the two programs load. Without
+    // it the test compares panes that no user ever sees.
+    psldm_ui::load_style(None);
     true
 }
 

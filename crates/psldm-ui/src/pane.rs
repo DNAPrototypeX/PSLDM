@@ -149,7 +149,19 @@ impl LoginPane {
             shake_source: Rc::new(RefCell::new(None)),
         };
         pane.set_chrome(mode.chrome());
+        // The state machine starts in Phase::Idle. The widgets must start
+        // there too, or the first frame shows the whole pane and the next
+        // one fades it away.
+        pane.set_phase(Phase::Idle);
         pane
+    }
+
+    /// Show the clock only, or the whole pane.
+    pub fn set_phase(&self, phase: Phase) {
+        let idle = phase == Phase::Idle;
+        set_css_class(&self.clock_column, "idle", idle);
+        set_css_class(&self.center, "idle", idle);
+        self.center.set_can_target(!idle);
     }
 
     /// Show or hide the three parts that the mode owns.
@@ -164,6 +176,11 @@ impl LoginPane {
     /// The widget to put in the window.
     pub fn widget(&self) -> &gtk::Widget {
         &self.root
+    }
+
+    /// Report whether the pane still belongs to a window.
+    pub fn is_on_screen(&self) -> bool {
+        self.root.root().is_some()
     }
 
     /// Report whether the field is empty.
@@ -207,10 +224,7 @@ impl LoginPane {
 
     /// Show the state of one attempt.
     pub fn render(&self, state: &LoginState) {
-        let idle = state.phase == Phase::Idle;
-        set_css_class(&self.clock_column, "idle", idle);
-        set_css_class(&self.center, "idle", idle);
-        self.center.set_can_target(!idle);
+        self.set_phase(state.phase);
 
         self.entry.set_sensitive(!state.busy);
         self.entry.set_secondary_icon_name(Some(if state.busy {
@@ -291,6 +305,25 @@ impl LoginPane {
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
         self.sessions
             .set_model(Some(&gtk::StringList::new(&names)));
+    }
+
+    /// Select one session by name. An unknown name changes nothing.
+    pub fn select_session(&self, name: &str) {
+        let Some(model) = self.sessions.model() else {
+            return;
+        };
+        for index in 0..model.n_items() {
+            let Some(item) = model.item(index) else {
+                continue;
+            };
+            let Ok(text) = item.downcast::<gtk::StringObject>() else {
+                continue;
+            };
+            if text.string() == name {
+                self.sessions.set_selected(index);
+                return;
+            }
+        }
     }
 
     /// The name of the selected session, if the list has one.
@@ -384,6 +417,11 @@ fn build_clock() -> gtk::Box {
     let time_clone = time.clone();
     let date_clone = date.clone();
     glib::timeout_add_seconds_local(1, move || {
+        // The session-lock library destroys the window when the lock ends.
+        // A timer that keeps drawing into a destroyed window makes GTK fail.
+        if time_clone.root().is_none() {
+            return glib::ControlFlow::Break;
+        }
         update_clock(&time_clone, &date_clone);
         glib::ControlFlow::Continue
     });

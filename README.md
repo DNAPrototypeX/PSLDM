@@ -70,10 +70,19 @@ Two of those steps keep the greeter and the locker in step:
   the user that runs it, and those differ. The font must live in a system
   directory, because the greeter cannot read a home directory. The script
   warns you when it does not.
+- The greeter runs inside `psldm-greeter-session`. That script erases the
+  console when the compositor stops. Without it the screen shows the text
+  console between the password and the first frame of the session.
 - With `--greeter`, the script writes the modes of the running desktop to
   `/etc/psldm/monitors.conf`, and the greeter session reads that file. Without
   it, a laptop panel starts at its preferred mode, which is often larger than
   the mode the desktop uses, and the greeter looks smaller.
+
+The greeter keeps the last user and the last session in
+`/var/lib/psldm/state.toml`, and it offers them again at the next login. Pick
+the right session once. A desktop with several session files often needs
+this: on Omarchy the plain `Hyprland` entry starts no user services, and the
+`Omarchy (Hyprland uwsm)` entry starts them all.
 
 Run the script again after you change a monitor or your avatar.
 
@@ -124,9 +133,37 @@ binaries choose a surface and a backend. Nothing else differs:
 
 ## Requirements
 
-- A Wayland compositor with the `ext-session-lock-v1` protocol.
-- `greetd`, for the greeter.
-- `accountsservice`, for the user list and the avatars.
+On Arch Linux:
+
+```sh
+sudo pacman -S rust gtk4 gtk4-layer-shell greetd accountsservice hyprland
+```
+
+| Package | Needed for | Without it |
+| --- | --- | --- |
+| `gtk4`, `gtk4-layer-shell` 1.1 or later | Both programs. The session-lock API is part of gtk4-layer-shell | Nothing runs |
+| `greetd` | The greeter only | The locker still works |
+| `accountsservice` | The user list and the avatars | The greeter shows the user who runs it |
+| A compositor for the greeter | The greeter only. `hyprland`, `sway`, or `cage` | The greeter has no screen |
+| `python3` | `install.sh`, to copy the monitor modes | The greeter uses the preferred mode |
+
+The compositor of your session must support `ext-session-lock-v1`. Hyprland,
+Sway, KDE, and River do.
+
+## Other desktops
+
+PSLDM has no code for one distribution or one desktop. Three files hold every
+choice, and each one is easy to change:
+
+- `packaging/greetd/greeter-session` names the compositor for the greeter.
+  Change one line for `cage` or `sway`.
+- `packaging/greetd/hyprland.conf` is the Hyprland configuration for that
+  compositor. Another compositor needs its own file.
+- `install.sh --greeter` writes `/etc/psldm/monitors.conf` from `hyprctl`.
+  Another compositor keeps the preferred mode of each monitor.
+
+The wallpaper, the font, the avatar, and the session memory work the same
+everywhere. They live in `/etc/psldm` and `/var/lib/psldm`.
 
 ## License
 

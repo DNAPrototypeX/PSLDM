@@ -1,0 +1,34 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Paul Moore
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The session that greetd starts. It holds the PSLDM greeter.
+#
+# Install it at /usr/bin/psldm-greeter-session, or wherever install.sh puts
+# the programs. /etc/greetd/config.toml names this file.
+
+# The compositor that holds the greeter. Another compositor needs another
+# command here, such as:
+#   cage -s -- /usr/local/bin/psldm-greet
+#   sway --config /etc/greetd/sway.conf
+compositor="Hyprland --config /etc/greetd/hyprland.conf"
+
+if ! command -v "${compositor%% *}" >/dev/null; then
+    echo "psldm-greeter-session: ${compositor%% *} is not installed" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC2086
+$compositor
+status=$?
+
+# Erase the console before the user session starts.
+#
+# The compositor gives the virtual terminal back in text mode when it stops.
+# The screen then shows the console until the user session draws its first
+# frame. These codes hide the cursor and erase the screen and the scrollback,
+# so the wait is black instead of text.
+printf '\033[?25l\033[3J\033[2J\033[H' >/dev/tty 2>/dev/null || true
+
+exit "$status"
