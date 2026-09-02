@@ -267,6 +267,10 @@ install_monitors() {
         say "No hyprctl. The greeter will use the preferred mode of each monitor"
         return 0
     fi
+    if ! command -v python3 >/dev/null; then
+        say "No python3. The greeter will use the preferred mode of each monitor"
+        return 0
+    fi
 
     local temporary
     temporary="$(mktemp)"

@@ -34,14 +34,14 @@ fn main() {
 
     let args: Vec<String> = env::args().skip(1).collect();
     let code = match args.first().map(String::as_str) {
-        None => lock(default_wallpaper()),
+        None => lock(settings::wallpaper()),
         Some("--wallpaper") => lock(args.get(1).map(PathBuf::from)),
         Some("--preview") => preview(
-            args.get(1).map(PathBuf::from).or_else(default_wallpaper),
+            args.get(1).map(PathBuf::from).or_else(settings::wallpaper),
             HostKind::Preview,
         ),
         Some("--preview-lock") => preview(
-            args.get(1).map(PathBuf::from).or_else(default_wallpaper),
+            args.get(1).map(PathBuf::from).or_else(settings::wallpaper),
             HostKind::SessionLock,
         ),
         Some("--check") => {
@@ -112,23 +112,6 @@ fn setup(wallpaper: Option<PathBuf>, host: HostKind) -> AppSetup {
         poweroff: Vec::new(),
         host,
     }
-}
-
-/// The wallpaper of the desktop, if PSLDM can find one.
-///
-/// The order is `PSLDM_WALLPAPER`, then the PSLDM link, then the Omarchy link.
-fn default_wallpaper() -> Option<PathBuf> {
-    if let Some(path) = env::var_os("PSLDM_WALLPAPER") {
-        return Some(PathBuf::from(path));
-    }
-
-    let home = PathBuf::from(env::var_os("HOME")?);
-    [
-        home.join(".config/psldm/wallpaper"),
-        home.join(".config/omarchy/current/background"),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
 }
 
 /// Run PAM on the terminal, without a window.

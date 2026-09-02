@@ -15,15 +15,12 @@
 
 use std::cell::RefCell;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use psldm_auth::{demo, greetd};
 use psldm_session::constants::X11_CMD_PREFIX;
 use psldm_session::{Cache, LocalUser, SysUtil, settings};
 use psldm_ui::{AppSetup, HostKind, Mode, SessionChoice, UiConfig, UserInfo};
-
-/// The wallpaper for the greeter. The greeter user has no home directory.
-const SYSTEM_WALLPAPER: &str = "/etc/psldm/wallpaper";
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -193,10 +190,7 @@ fn build_setup(wallpaper: Option<PathBuf>, host: HostKind, system: System) -> Ap
             avatar: None,
         });
 
-    let wallpaper = wallpaper.or_else(|| {
-        let path = Path::new(SYSTEM_WALLPAPER);
-        path.exists().then(|| path.to_path_buf())
-    });
+    let wallpaper = wallpaper.or_else(settings::wallpaper);
 
     AppSetup {
         app_id: "com.psldm.greet".into(),

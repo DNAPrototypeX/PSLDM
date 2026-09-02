@@ -8,7 +8,19 @@
 # Install it at /usr/bin/psldm-greeter-session, or wherever install.sh puts
 # the programs. /etc/greetd/config.toml names this file.
 
-Hyprland --config /etc/greetd/hyprland.conf
+# The compositor that holds the greeter. Another compositor needs another
+# command here, such as:
+#   cage -s -- /usr/local/bin/psldm-greet
+#   sway --config /etc/greetd/sway.conf
+compositor="Hyprland --config /etc/greetd/hyprland.conf"
+
+if ! command -v "${compositor%% *}" >/dev/null; then
+    echo "psldm-greeter-session: ${compositor%% *} is not installed" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC2086
+$compositor
 status=$?
 
 # Erase the console before the user session starts.
