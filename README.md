@@ -87,14 +87,21 @@ needs the full path, because it often runs with a short PATH.
 
 ## The screen
 
-The screen has two phases, as macOS has.
+The layout follows macOS Sonoma.
 
-- The clock only. The wallpaper is sharp, with a dark layer over it.
-- The clock at the top, with the avatar, the name, and the field. The first
-  key opens this phase, and the field does not receive that key.
+- The clock and the date sit at the top.
+- The avatar and the name sit near the bottom.
+- The greeter puts two small power buttons at the bottom left, and the
+  session list at the bottom right.
+
+The screen has two phases. Before the first key it shows the picker only.
+The first key slides the password field in under the name over 260
+milliseconds, and the picker rises as the field grows. That key does not
+reach the field.
 
 The screen returns to the first phase after 30 seconds without a key, but
-only while the field is empty.
+only while the field is empty. A row of other users appears above the bottom
+bar when the computer has more than one.
 
 ## How it works
 
@@ -141,7 +148,7 @@ and compares every pixel:
 
 1. It draws one pane twice and requires the same pixels, so that the
    comparison means something.
-2. It requires a new pane to draw the clock only.
+2. It requires a new pane to draw the idle phase, with no field.
 3. It requires the greeter to draw more than the locker.
 4. It hides the three greeter parts, then requires an exact match.
 
