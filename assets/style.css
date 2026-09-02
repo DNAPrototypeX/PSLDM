@@ -35,10 +35,10 @@ popover {
   color: #ffffff;
 }
 
-/* The picker stays on the screen. The field joins it after the first key,
- * and the column then moves up a little. */
+/* The picker sits near the bottom of the screen. The field slides in under
+ * the name after the first key. */
 .psldm-login {
-  opacity: 1;
+  margin-bottom: 34px;
 }
 
 .psldm-date {
@@ -56,16 +56,16 @@ popover {
 }
 
 .psldm-name {
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 600;
-  margin-top: 14px;
+  margin-top: 10px;
   color: #ffffff;
 }
 
 /* The capsule password field. The selector names the entry node as well as
  * the class, so that it wins over the theme. */
 entry.psldm-entry {
-  min-width: 116px;
+  min-width: 112px;
   min-height: 26px;
   margin-top: 14px;
   padding: 0 4px 0 10px;

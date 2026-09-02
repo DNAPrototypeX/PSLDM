@@ -90,13 +90,14 @@ needs the full path, because it often runs with a short PATH.
 The layout follows macOS Sonoma.
 
 - The clock and the date sit at the top.
-- The avatar and the name sit in the middle.
+- The avatar and the name sit near the bottom.
 - The greeter puts two small power buttons at the bottom left, and the
   session list at the bottom right.
 
 The screen has two phases. Before the first key it shows the picker only.
-The first key adds the password field under the name, and the picker moves up
-a little. That key does not reach the field.
+The first key slides the password field in under the name over 260
+milliseconds, and the picker rises as the field grows. That key does not
+reach the field.
 
 The screen returns to the first phase after 30 seconds without a key, but
 only while the field is empty. A row of other users appears above the bottom

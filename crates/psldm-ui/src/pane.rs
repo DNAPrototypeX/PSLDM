@@ -20,7 +20,10 @@ use crate::avatar::Avatar;
 use crate::background::Background;
 
 /// The side of the avatar over the name, in pixels.
-const AVATAR_SIZE: i32 = 96;
+const AVATAR_SIZE: i32 = 72;
+
+/// How long the field takes to slide into place, in milliseconds.
+const REVEAL_MS: u32 = 260;
 
 /// The side of an avatar in the user row, in pixels.
 const USER_ROW_AVATAR_SIZE: i32 = 44;
@@ -59,6 +62,7 @@ pub struct LoginPane {
     root: gtk::Widget,
     clock_column: gtk::Box,
     center: gtk::Box,
+    field: gtk::Revealer,
     avatar: Avatar,
     name: gtk::Label,
     entry: gtk::Entry,
@@ -99,17 +103,26 @@ impl LoginPane {
         users_row.set_halign(gtk::Align::Center);
         users_row.add_css_class("psldm-users");
 
-        // The picker holds the avatar and the name. The field joins it when
-        // the user presses a key, and the whole column then moves up a
-        // little, because a centre box grows in both directions.
+        // The field and its message slide in together. The revealer grows
+        // from no height to full height, so the picker above it moves up
+        // smoothly instead of jumping.
+        let field_column = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        field_column.append(&entry);
+        field_column.append(&hint);
+
+        let field = gtk::Revealer::new();
+        field.set_transition_type(gtk::RevealerTransitionType::SlideDown);
+        field.set_transition_duration(REVEAL_MS);
+        field.set_child(Some(&field_column));
+
+        // The picker holds the avatar and the name. It sits near the bottom
+        // of the screen, as macOS shows it.
         let center = gtk::Box::new(gtk::Orientation::Vertical, 0);
         center.add_css_class("psldm-login");
         center.set_halign(gtk::Align::Center);
-        center.set_valign(gtk::Align::Center);
         center.append(&avatar);
         center.append(&name);
-        center.append(&entry);
-        center.append(&hint);
+        center.append(&field);
         center.append(&users_row);
 
         let sessions = gtk::DropDown::from_strings(&[]);
@@ -122,16 +135,20 @@ impl LoginPane {
 
         // The bottom bar holds the power buttons on the left and the session
         // list on the right, as macOS does.
-        let bottom = gtk::CenterBox::new();
-        bottom.add_css_class("psldm-bottom");
+        let bar = gtk::CenterBox::new();
+        bar.add_css_class("psldm-bottom");
+        bar.set_start_widget(Some(&power_row));
+        bar.set_end_widget(Some(&sessions));
+
+        // The picker and the bar share the lower part of the screen.
+        let bottom = gtk::Box::new(gtk::Orientation::Vertical, 0);
         bottom.set_valign(gtk::Align::End);
-        bottom.set_start_widget(Some(&power_row));
-        bottom.set_end_widget(Some(&sessions));
+        bottom.append(&center);
+        bottom.append(&bar);
 
         let column = gtk::CenterBox::new();
         column.set_orientation(gtk::Orientation::Vertical);
         column.set_start_widget(Some(&clock));
-        column.set_center_widget(Some(&center));
         column.set_end_widget(Some(&bottom));
 
         let overlay = gtk::Overlay::new();
@@ -143,6 +160,7 @@ impl LoginPane {
             root: overlay.upcast(),
             clock_column: clock,
             center,
+            field,
             avatar,
             name,
             entry,
@@ -166,9 +184,8 @@ impl LoginPane {
         set_css_class(&self.clock_column, "idle", idle);
         set_css_class(&self.center, "idle", idle);
 
-        // The field leaves the layout, so the picker moves back down.
-        self.entry.set_visible(!idle);
-        self.hint.set_visible(!idle);
+        // The revealer animates the height, so the picker glides.
+        self.field.set_reveal_child(!idle);
     }
 
     /// Show or hide the three parts that the mode owns.
