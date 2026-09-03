@@ -39,7 +39,6 @@ mod imp {
         const NAME: &'static str = "PsldmAvatar";
         type Type = super::Avatar;
         type ParentType = gtk::Widget;
-
     }
 
     impl ObjectImpl for Avatar {

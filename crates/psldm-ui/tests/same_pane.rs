@@ -10,6 +10,8 @@
 //!
 //! The test needs a Wayland or an X11 display, because GTK draws with the
 //! graphics driver. Without a display the test reports the reason and stops.
+//! Set `PSLDM_REQUIRE_DISPLAY` to make the missing display a failure. The
+//! continuous-integration job sets it, so that a skipped test cannot pass.
 
 use gtk::prelude::*;
 use psldm_ui::{Chrome, LoginPane, Mode, Phase, UiConfig, UserInfo};
@@ -25,6 +27,12 @@ const HEIGHT: i32 = 800;
 /// The greeter draws its power buttons and its session list there. Every row
 /// above it must match the locker.
 const BAR_HEIGHT: i32 = 96;
+
+/// The time that both panes show during the test.
+const CLOCK_TIME: &str = "9:41";
+
+/// The date that both panes show during the test.
+const CLOCK_DATE: &str = "Monday, June 1";
 
 /// The limit on main loop turns while the test waits for the first frame.
 const MAX_TURNS: usize = 2000;
@@ -47,10 +55,14 @@ fn the_two_modes_draw_the_same_pane() {
     let config = UiConfig::default();
     let user = test_user();
 
-    // Both panes must exist before either one draws, so that the clock shows
-    // the same minute in both.
     let lock = Drawing::new(Mode::Lock, &config, &user);
     let greet = Drawing::new(Mode::Greet, &config, &user);
+
+    // The two panes draw one after the other. A minute that changes between
+    // the two drawings makes two equal panes differ, so both panes show one
+    // fixed time.
+    lock.pane.freeze_clock(CLOCK_TIME, CLOCK_DATE);
+    greet.pane.freeze_clock(CLOCK_TIME, CLOCK_DATE);
 
     // One pane must draw the same pixels twice. Without this check, a change
     // between two drawings would hide a real difference.
@@ -87,7 +99,12 @@ fn the_two_modes_draw_the_same_pane() {
     // that draws nothing would pass the comparison below.
     let with_chrome = count_different(&lock.pixels(), &greet.pixels());
     dump("lock", &lock.pixels(), WIDTH as usize, HEIGHT as usize);
-    dump("greet-chrome", &greet.pixels(), WIDTH as usize, HEIGHT as usize);
+    dump(
+        "greet-chrome",
+        &greet.pixels(),
+        WIDTH as usize,
+        HEIGHT as usize,
+    );
     assert!(
         with_chrome > 0,
         "The greeter must show the power buttons, the user row, and the \
@@ -109,7 +126,12 @@ fn the_two_modes_draw_the_same_pane() {
     let lock_pixels = lock.pixels();
     let greet_pixels = greet.pixels();
     dump("lock-2", &lock_pixels, WIDTH as usize, HEIGHT as usize);
-    dump("greet-plain", &greet_pixels, WIDTH as usize, HEIGHT as usize);
+    dump(
+        "greet-plain",
+        &greet_pixels,
+        WIDTH as usize,
+        HEIGHT as usize,
+    );
     let different = count_different(&lock_pixels, &greet_pixels);
     assert_eq!(
         different, 0,
@@ -217,12 +239,10 @@ fn settle() {
 /// Start GTK. Returns `false` when the test must stop.
 fn start_gtk() -> bool {
     if std::env::var_os("WAYLAND_DISPLAY").is_none() && std::env::var_os("DISPLAY").is_none() {
-        println!("Skipped: no Wayland display and no X11 display.");
-        return false;
+        return no_display("no Wayland display and no X11 display");
     }
     if gtk::init().is_err() {
-        println!("Skipped: GTK cannot open the display.");
-        return false;
+        return no_display("GTK cannot open the display");
     }
     if let Some(settings) = gtk::Settings::default() {
         settings.set_gtk_cursor_blink(false);
@@ -235,6 +255,19 @@ fn start_gtk() -> bool {
     // it the test compares panes that no user ever sees.
     psldm_ui::load_style(None);
     true
+}
+
+/// Report a display that the test cannot use. Returns `false` to stop.
+///
+/// A skipped test looks like a pass. `PSLDM_REQUIRE_DISPLAY` therefore turns
+/// the skip into a failure, and the job that runs the tests sets it.
+fn no_display(reason: &str) -> bool {
+    assert!(
+        std::env::var_os("PSLDM_REQUIRE_DISPLAY").is_none(),
+        "PSLDM_REQUIRE_DISPLAY is set, but the test found {reason}."
+    );
+    println!("Skipped: {reason}.");
+    false
 }
 
 /// Save both drawings and their difference, for a failure that needs eyes.
