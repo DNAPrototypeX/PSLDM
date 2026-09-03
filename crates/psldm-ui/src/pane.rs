@@ -7,17 +7,17 @@
 //! The greeter and the locker build the same pane. [`crate::Mode`] decides
 //! whether the power buttons, the user row, and the session list appear.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use gtk::glib;
 use gtk::prelude::*;
 
-use crate::state::{LoginState, MessageKind, Phase};
-use crate::{Chrome, Mode, UiConfig};
 use crate::avatar::Avatar;
 use crate::background::Background;
+use crate::state::{LoginState, MessageKind, Phase};
+use crate::{Chrome, Mode, UiConfig};
 
 /// The side of the avatar over the name, in pixels.
 const AVATAR_SIZE: i32 = 72;
@@ -60,7 +60,7 @@ impl UserInfo {
 /// The widgets of the login pane.
 pub struct LoginPane {
     root: gtk::Widget,
-    clock_column: gtk::Box,
+    clock: Clock,
     center: gtk::Box,
     field: gtk::Revealer,
     avatar: Avatar,
@@ -76,7 +76,6 @@ pub struct LoginPane {
 impl LoginPane {
     /// Build the pane for one mode and one user.
     pub fn new(mode: Mode, config: &UiConfig, user: &UserInfo) -> Self {
-
         let background = Background::new(config.wallpaper.as_deref(), config.blur, config.scrim);
 
         let clock = build_clock();
@@ -150,7 +149,7 @@ impl LoginPane {
 
         let column = gtk::CenterBox::new();
         column.set_orientation(gtk::Orientation::Vertical);
-        column.set_start_widget(Some(&clock));
+        column.set_start_widget(Some(&clock.column));
         column.set_end_widget(Some(&bottom));
 
         let overlay = gtk::Overlay::new();
@@ -161,7 +160,7 @@ impl LoginPane {
 
         let pane = Self {
             root: overlay.upcast(),
-            clock_column: clock,
+            clock,
             center,
             field,
             avatar,
@@ -181,10 +180,21 @@ impl LoginPane {
         pane
     }
 
+    /// Show one fixed time and date, and stop the clock.
+    ///
+    /// The test that compares the greeter with the locker needs this. The
+    /// two panes draw one after the other. A minute that changes between the
+    /// two drawings makes two equal panes look different.
+    pub fn freeze_clock(&self, time: &str, date: &str) {
+        self.clock.frozen.set(true);
+        self.clock.time.set_text(time);
+        self.clock.date.set_text(date);
+    }
+
     /// Show the picker only, or the picker with the field.
     pub fn set_phase(&self, phase: Phase) {
         let idle = phase == Phase::Idle;
-        set_css_class(&self.clock_column, "idle", idle);
+        set_css_class(&self.clock.column, "idle", idle);
         set_css_class(&self.center, "idle", idle);
 
         // The revealer animates the height, so the picker glides.
@@ -333,8 +343,7 @@ impl LoginPane {
     /// Fill the session list. The locker keeps the list hidden.
     pub fn set_sessions(&self, names: &[String]) {
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
-        self.sessions
-            .set_model(Some(&gtk::StringList::new(&names)));
+        self.sessions.set_model(Some(&gtk::StringList::new(&names)));
     }
 
     /// Select one session by name. An unknown name changes nothing.
@@ -384,11 +393,7 @@ impl LoginPane {
     }
 
     /// Add a power button. The greeter adds one button for each action.
-    pub fn add_power_button(
-        &self,
-        action: PowerAction,
-        handler: impl Fn(PowerAction) + 'static,
-    ) {
+    pub fn add_power_button(&self, action: PowerAction, handler: impl Fn(PowerAction) + 'static) {
         let (icon, tooltip) = match action {
             PowerAction::Restart => ("system-reboot-symbolic", "Restart"),
             PowerAction::Shutdown => ("system-shutdown-symbolic", "Shut Down"),
@@ -412,10 +417,11 @@ impl LoginPane {
 
         let center = self.center.clone();
         let slot = Rc::clone(&self.shake_source);
-        let source = glib::timeout_add_local_once(std::time::Duration::from_millis(460), move || {
-            center.remove_css_class("psldm-shake");
-            slot.replace(None);
-        });
+        let source =
+            glib::timeout_add_local_once(std::time::Duration::from_millis(460), move || {
+                center.remove_css_class("psldm-shake");
+                slot.replace(None);
+            });
         self.shake_source.replace(Some(source));
     }
 }
@@ -430,7 +436,15 @@ fn set_css_class(widget: &impl IsA<gtk::Widget>, class: &str, present: bool) {
     }
 }
 
-fn build_clock() -> gtk::Box {
+/// The clock, the date under it, and the switch that stops the timer.
+struct Clock {
+    column: gtk::Box,
+    time: gtk::Label,
+    date: gtk::Label,
+    frozen: Rc<Cell<bool>>,
+}
+
+fn build_clock() -> Clock {
     let time = gtk::Label::new(None);
     time.add_css_class("psldm-clock");
     let date = gtk::Label::new(None);
@@ -444,19 +458,26 @@ fn build_clock() -> gtk::Box {
     column.append(&date);
 
     update_clock(&time, &date);
+    let frozen = Rc::new(Cell::new(false));
     let time_clone = time.clone();
     let date_clone = date.clone();
+    let frozen_clone = frozen.clone();
     glib::timeout_add_seconds_local(1, move || {
         // The session-lock library destroys the window when the lock ends.
         // A timer that keeps drawing into a destroyed window makes GTK fail.
-        if time_clone.root().is_none() {
+        if time_clone.root().is_none() || frozen_clone.get() {
             return glib::ControlFlow::Break;
         }
         update_clock(&time_clone, &date_clone);
         glib::ControlFlow::Continue
     });
 
-    column
+    Clock {
+        column,
+        time,
+        date,
+        frozen,
+    }
 }
 
 fn update_clock(time: &gtk::Label, date: &gtk::Label) {

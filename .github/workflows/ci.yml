@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 Paul Moore
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Build PSLDM and run the tests on every push and every pull request.
+#
+# The job runs in an Arch Linux container, because PSLDM needs
+# gtk4-layer-shell 1.3 and the Ubuntu runner has 1.0. Xvfb gives the pixel
+# test a display.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+
+    steps:
+      - name: Install the dependencies
+        run: |
+          pacman -Syu --needed --noconfirm \
+            gcc pkgconf git rust clang \
+            gtk4 gtk4-layer-shell pam \
+            xorg-server-xvfb ttf-dejavu
+
+      - name: Get the source
+        uses: actions/checkout@v4
+
+      - name: Trust the work directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Cache the build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: arch-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: arch-cargo-
+
+      - name: Check the format
+        run: cargo fmt --all --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run the tests
+        env:
+          GDK_BACKEND: x11
+          # The runner has no graphics card, so GTK must draw with the
+          # processor.
+          GSK_RENDERER: cairo
+          # Without a display the pixel test skips itself, and a skipped test
+          # looks like a pass. This variable makes the skip a failure.
+          PSLDM_REQUIRE_DISPLAY: 1
+        run: xvfb-run -a -s "-screen 0 1920x1200x24" cargo test --workspace
