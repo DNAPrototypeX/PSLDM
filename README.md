@@ -4,9 +4,10 @@
 
 Paul's Screen Locker and Display Manager: one login pane with two front ends.
 The greeter logs you in. The locker unlocks a session that already runs. Both
-draw the same pane from the same code, so the two screens match.
+draw the same pane from the same code, so the two screens match. The look
+follows macOS Sonoma.
 
-![The greeter on the left, the locker on the right](docs/comparison.png)
+![The greeter and the locker, before and after the first key](docs/comparison.png)
 
 The greeter adds the power buttons, the user picker, and the session list.
 Nothing else differs.
@@ -31,12 +32,13 @@ remove everything again.
 ## Lock the screen
 
 1. Test the locker: `psldm-lock --preview`.
-2. Add `source = /path/to/PSLDM/packaging/hypr/psldm-lock.conf` to
-   `~/.config/hypr/hyprland.conf`.
-3. Press SUPER + L.
+2. Bind `pgrep -x psldm-lock || psldm-lock` to a key in your compositor. The
+   guard keeps one locker on the screen at a time.
+3. Give the same command to your idle daemon.
 
-That file also holds `misc:allow_session_lock_restore`. Hyprland needs this
-setting to give the lock back to a new locker after a crash.
+`packaging/hypr/psldm-lock.conf` holds both lines for Hyprland. It also sets
+`misc:allow_session_lock_restore`, which lets a new locker take the lock back
+after a crash.
 
 ## Log in with the greeter
 
@@ -47,17 +49,6 @@ setting to give the lock back to a new locker after a crash.
 
 WARNING: greetd replaces your login screen. Keep the second console open
 until the greeter works.
-
-## The screen
-
-The screen has two phases, as macOS has.
-
-- The clock alone, over a sharp wallpaper with a dark layer on it.
-- The clock at the top, with the avatar, the name, and the password field.
-
-The first key opens the second phase, and the field does not receive that
-key. The screen returns to the first phase after 30 seconds without a key,
-but only while the field is empty.
 
 ## Crates
 
@@ -90,12 +81,16 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 The workspace holds 9 tests for the state machine and one pixel test. The
 pixel test draws both modes and compares every pixel, so a change that only
-one mode shows makes it fail. That test needs a display. Without one it
-prints the reason and stops, and `PSLDM_REQUIRE_DISPLAY=1` makes the same
-condition a failure.
+one mode shows makes it fail.
 
-GitHub Actions runs the same three commands in an Arch Linux container, with
-Xvfb for the display. See `.github/workflows/ci.yml`.
+GitHub Actions runs the same three commands in an Arch Linux container. See
+`.github/workflows/ci.yml`.
+
+This command draws the picture at the top of this page:
+
+```sh
+cargo run -p psldm-ui --example comparison -- docs/comparison.png
+```
 
 ## License
 
