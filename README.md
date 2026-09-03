@@ -100,8 +100,12 @@ milliseconds, and the picker rises as the field grows. That key does not
 reach the field.
 
 The screen returns to the first phase after 30 seconds without a key, but
-only while the field is empty. A row of other users appears above the bottom
-bar when the computer has more than one.
+only while the field is empty. A row of other users appears in the middle of
+the bottom bar when the computer has more than one.
+
+The bottom bar floats over the pane, so the height of the power buttons and
+the user row cannot move the avatar. A test compares the two modes above the
+bar and requires an exact match.
 
 ## How it works
 
@@ -150,9 +154,12 @@ and compares every pixel:
    comparison means something.
 2. It requires a new pane to draw the idle phase, with no field.
 3. It requires the greeter to draw more than the locker.
-4. It hides the three greeter parts, then requires an exact match.
+4. It requires the two modes to match above the bottom bar, with the greeter
+   parts on the screen. The bar once stood under the picker and moved the
+   avatar up in the greeter alone.
+5. It hides the three greeter parts, then requires an exact match everywhere.
 
-A 3 pixel margin that only the greeter uses makes step 4 fail with about 3900
+A 3 pixel margin that only the greeter uses makes step 5 fail with about 3900
 different pixels.
 
 The test needs a Wayland or an X11 display, and it opens two windows for a

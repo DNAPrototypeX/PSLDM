@@ -72,8 +72,12 @@ pub struct AppSetup {
 
 /// Show the pane and run the GTK main loop.
 pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
+    // Every run is its own program. Without this flag a second psldm-lock
+    // would hand its work to the first one over D-Bus and then exit, and a
+    // program left in memory would swallow every later lock.
     let app = gtk::Application::builder()
         .application_id(setup.app_id.clone())
+        .flags(gtk::gio::ApplicationFlags::NON_UNIQUE)
         .build();
 
     let setup = Rc::new(setup);
@@ -100,6 +104,17 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
                 return;
             }
         };
+
+        // A compositor that goes away takes the program with it.
+        if let Some(display) = gtk::gdk::Display::default() {
+            let closed_app = app.clone();
+            let closed_surfaces = Rc::clone(&surfaces);
+            display.connect_closed(move |_, _| {
+                tracing::info!("The display closed");
+                closed_surfaces.release();
+                closed_app.quit();
+            });
+        }
 
         let state = Rc::new(RefCell::new(LoginState::new(
             setup.mode,
