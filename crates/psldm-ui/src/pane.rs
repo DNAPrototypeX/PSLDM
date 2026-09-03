@@ -123,7 +123,6 @@ impl LoginPane {
         center.append(&avatar);
         center.append(&name);
         center.append(&field);
-        center.append(&users_row);
 
         let sessions = gtk::DropDown::from_strings(&[]);
         sessions.add_css_class("psldm-session");
@@ -135,16 +134,19 @@ impl LoginPane {
 
         // The bottom bar holds the power buttons on the left and the session
         // list on the right, as macOS does.
+        // The bar floats over the pane instead of standing under it. The
+        // height of the power buttons would otherwise push the picker up,
+        // and the greeter would place the avatar higher than the locker.
         let bar = gtk::CenterBox::new();
         bar.add_css_class("psldm-bottom");
+        bar.set_valign(gtk::Align::End);
         bar.set_start_widget(Some(&power_row));
+        bar.set_center_widget(Some(&users_row));
         bar.set_end_widget(Some(&sessions));
 
-        // The picker and the bar share the lower part of the screen.
         let bottom = gtk::Box::new(gtk::Orientation::Vertical, 0);
         bottom.set_valign(gtk::Align::End);
         bottom.append(&center);
-        bottom.append(&bar);
 
         let column = gtk::CenterBox::new();
         column.set_orientation(gtk::Orientation::Vertical);
@@ -154,6 +156,7 @@ impl LoginPane {
         let overlay = gtk::Overlay::new();
         overlay.set_child(Some(&background));
         overlay.add_overlay(&column);
+        overlay.add_overlay(&bar);
         overlay.add_css_class("psldm-root");
 
         let pane = Self {

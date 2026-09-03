@@ -38,7 +38,7 @@ popover {
 /* The picker sits near the bottom of the screen. The field slides in under
  * the name after the first key. */
 .psldm-login {
-  margin-bottom: 34px;
+  margin-bottom: 84px;
 }
 
 .psldm-date {
@@ -115,7 +115,7 @@ entry.psldm-entry > image {
 
 /* The row of users, and the row of power buttons. */
 .psldm-users {
-  margin-top: 22px;
+  margin: 0;
 }
 
 button.psldm-user-button {

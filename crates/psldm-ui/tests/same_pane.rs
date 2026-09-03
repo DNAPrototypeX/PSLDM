@@ -20,6 +20,12 @@ const WIDTH: i32 = 1280;
 /// The height of the drawing, in pixels.
 const HEIGHT: i32 = 800;
 
+/// The height of the bottom bar and its margin, in pixels.
+///
+/// The greeter draws its power buttons and its session list there. Every row
+/// above it must match the locker.
+const BAR_HEIGHT: i32 = 96;
+
 /// The limit on main loop turns while the test waits for the first frame.
 const MAX_TURNS: usize = 2000;
 
@@ -86,6 +92,16 @@ fn the_two_modes_draw_the_same_pane() {
         with_chrome > 0,
         "The greeter must show the power buttons, the user row, and the \
          session list."
+    );
+
+    // The bar must not move the pane. The greeter keeps its power buttons
+    // and its session list here, and only those rows may differ. The bar
+    // once stood under the picker and pushed it up in the greeter alone.
+    let above_bar = count_different_above(&lock.pixels(), &greet.pixels(), BAR_HEIGHT);
+    assert_eq!(
+        above_bar, 0,
+        "The greeter moved the pane. {above_bar} pixels differ above the \
+         bottom bar, where the two modes must match."
     );
 
     // Hide the three parts that the greeter owns. Everything else must match.
@@ -236,6 +252,14 @@ fn dump(name: &str, pixels: &[u8], width: usize, height: usize) {
     if let Err(err) = std::fs::write(&path, data) {
         println!("Cannot write {}: {err}", path.display());
     }
+}
+
+/// Count the pixels that differ above the bottom bar.
+fn count_different_above(left: &[u8], right: &[u8], bar_height: i32) -> usize {
+    let rows = (HEIGHT - bar_height).max(0) as usize;
+    let row_bytes = WIDTH as usize * 4;
+    let end = rows * row_bytes;
+    count_different(&left[..end.min(left.len())], &right[..end.min(right.len())])
 }
 
 /// Count the pixels that differ.

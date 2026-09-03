@@ -12,7 +12,7 @@
 //! - `SessionLock` uses the `ext-session-lock-v1` protocol. The compositor
 //!   keeps the screen locked even if the locker stops.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::gio::ApplicationHoldGuard;
@@ -55,7 +55,9 @@ pub struct Surfaces {
     windows: Vec<gtk::Window>,
     lock: Option<SessionLock>,
     /// Keeps the program alive while no window belongs to the application.
-    _hold: Option<ApplicationHoldGuard>,
+    /// The lock drops it when the lock ends, so the program cannot outlive
+    /// the lock.
+    hold: Rc<RefCell<Option<ApplicationHoldGuard>>>,
     /// The compositor ended the lock, or it never started it.
     failed: Rc<Cell<bool>>,
 }
@@ -95,6 +97,11 @@ impl Surfaces {
     /// Report whether the lock failed.
     pub fn failed(&self) -> bool {
         self.failed.get()
+    }
+
+    /// Stop keeping the program alive.
+    pub fn release(&self) {
+        self.hold.borrow_mut().take();
     }
 
     /// Remove the surfaces.
@@ -144,7 +151,7 @@ fn preview(app: &gtk::Application, make_pane: &dyn Fn() -> LoginPane) -> Surface
         panes: vec![pane],
         windows: vec![window.upcast()],
         lock: None,
-        _hold: None,
+        hold: Rc::new(RefCell::new(None)),
         failed: Rc::new(Cell::new(false)),
     }
 }
@@ -184,7 +191,7 @@ fn layer_shell(
         panes,
         windows,
         lock: None,
-        _hold: None,
+        hold: Rc::new(RefCell::new(None)),
         failed: Rc::new(Cell::new(false)),
     })
 }
@@ -202,19 +209,29 @@ fn session_lock(
     let lock = SessionLock::new();
     let failed = Rc::new(Cell::new(false));
 
+    // The hold keeps the program alive while it owns no application window.
+    // Every path that ends the lock must drop it, or the program stays in
+    // memory for ever and blocks the next lock.
+    let hold: Rc<RefCell<Option<ApplicationHoldGuard>>> =
+        Rc::new(RefCell::new(Some(app.hold())));
+
     let failed_flag = Rc::clone(&failed);
     let failed_app = app.clone();
+    let failed_hold = Rc::clone(&hold);
     lock.connect_failed(move |_| {
         tracing::error!("The compositor refused the lock");
         failed_flag.set(true);
+        failed_hold.borrow_mut().take();
         failed_app.quit();
     });
 
     lock.connect_locked(|_| tracing::info!("The session is locked"));
 
     let unlocked_app = app.clone();
+    let unlocked_hold = Rc::clone(&hold);
     lock.connect_unlocked(move |_| {
         tracing::info!("The session is unlocked");
+        unlocked_hold.borrow_mut().take();
         // The library destroys the windows while this signal runs. Leave the
         // main loop on the next turn, so that the work finishes first.
         let app = unlocked_app.clone();
@@ -231,8 +248,7 @@ fn session_lock(
     // A lock surface must not belong to the application. The library calls
     // gtk_window_destroy on every window when the lock ends, and the
     // application handles that signal for its own windows. That handler
-    // crashed the program. A hold keeps the program alive instead.
-    let hold = app.hold();
+    // crashed the program.
 
     // Each window must be new and unrealized here. The library maps it, and
     // it destroys the window when the lock ends.
@@ -252,7 +268,7 @@ fn session_lock(
         panes,
         windows,
         lock: Some(lock),
-        _hold: Some(hold),
+        hold,
         failed,
     })
 }
