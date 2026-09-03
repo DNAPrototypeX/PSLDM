@@ -29,10 +29,13 @@ use gtk::prelude::*;
 use psldm_ui::{LoginPane, Mode, Phase, PowerAction, UiConfig, UserInfo};
 
 /// The width of one pane in the picture, in pixels.
-const WIDTH: i32 = 960;
+///
+/// The pane draws at the size of a real screen. A smaller picture would show
+/// the clock and the avatar larger than a user ever sees them.
+const WIDTH: i32 = 1920;
 
 /// The height of one pane in the picture, in pixels.
-const HEIGHT: i32 = 600;
+const HEIGHT: i32 = 1200;
 
 /// The time that every pane shows.
 const CLOCK_TIME: &str = "9:41";
@@ -61,17 +64,17 @@ const WALLPAPER_STOPS: [(f32, [f32; 3]); 3] = [
 
 /// The style of the page around the four panes.
 const PAGE_STYLE: &str = "
-.shot-page { background: #101014; padding: 28px; }
+.shot-page { background: #101014; padding: 40px; }
 .shot-caption {
     color: #f5f5f7;
-    font-size: 20px;
+    font-size: 30px;
     font-weight: 600;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 .shot-row-caption {
     color: #a1a1a6;
-    font-size: 16px;
-    margin-right: 8px;
+    font-size: 24px;
+    margin-right: 16px;
 }
 .shot-pane { border-radius: 12px; }
 ";
@@ -101,8 +104,8 @@ fn main() {
 
     let grid = gtk::Grid::new();
     grid.add_css_class("shot-page");
-    grid.set_row_spacing(28);
-    grid.set_column_spacing(28);
+    grid.set_row_spacing(40);
+    grid.set_column_spacing(40);
 
     grid.attach(&row_caption("Before\nthe first key"), 0, 1, 1, 1);
     grid.attach(&row_caption("After\nthe first key"), 0, 2, 1, 1);
