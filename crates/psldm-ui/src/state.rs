@@ -278,7 +278,8 @@ mod tests {
     fn every_return_to_the_clock_needs_a_new_first_key() {
         let mut state = LoginState::new(Mode::Lock, "paul");
 
-        // The caller swallows the key whenever `wake` reports a change.
+        // The caller starts the password with the key whenever `wake`
+        // reports a change.
         for _ in 0..3 {
             assert!(state.wake());
             assert!(!state.wake());

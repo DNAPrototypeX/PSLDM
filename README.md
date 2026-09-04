@@ -95,8 +95,8 @@ The layout follows macOS Sonoma.
 
 The screen has two phases. Before the first key it shows the picker only.
 The first key slides the password field in under the name over 260
-milliseconds, and the picker rises as the field grows. That key does not
-reach the field.
+milliseconds, and the picker rises as the field grows. That key also starts
+the password, so no character is lost.
 
 The screen returns to the first phase after 30 seconds without a key, but
 only while the field is empty. A row of other users appears in the middle of
