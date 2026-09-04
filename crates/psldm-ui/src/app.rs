@@ -208,24 +208,22 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
                         loop_surfaces.dismiss();
                         return;
                     }
-                    UiAction::StartSession => {
-                        match chosen_session(&loop_setup, &loop_surfaces) {
-                            Some(session) => {
-                                if let Some(remember) = &loop_setup.remember {
-                                    let username = loop_state.borrow().username.clone();
-                                    remember(&username, &session.name);
-                                }
-                                send(
-                                    &loop_sender,
-                                    AuthRequest::StartSession {
-                                        command: session.command.clone(),
-                                        environment: loop_setup.environment.clone(),
-                                    },
-                                );
+                    UiAction::StartSession => match chosen_session(&loop_setup, &loop_surfaces) {
+                        Some(session) => {
+                            if let Some(remember) = &loop_setup.remember {
+                                let username = loop_state.borrow().username.clone();
+                                remember(&username, &session.name);
                             }
-                            None => tracing::error!("No session is selected"),
+                            send(
+                                &loop_sender,
+                                AuthRequest::StartSession {
+                                    command: session.command.clone(),
+                                    environment: loop_setup.environment.clone(),
+                                },
+                            );
                         }
-                    }
+                        None => tracing::error!("No session is selected"),
+                    },
                     UiAction::Exit => {
                         // greetd starts the session when the greeter stops.
                         loop_surfaces.dismiss();

@@ -14,12 +14,12 @@ use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut};
 
 use lru::{DefaultHasher, LruCache as OrigLruCache};
-use tracing::warn;
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{MapAccess, Visitor},
     ser::SerializeMap,
 };
+use tracing::warn;
 
 /// Wrapper to enable (de)serialization
 pub(super) struct LruCache<K, V, S = DefaultHasher>(OrigLruCache<K, V, S>);

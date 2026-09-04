@@ -99,8 +99,8 @@ impl SysUtil {
             // AccountsService often reports a path inside a home directory,
             // and the greeter runs as another user, so it cannot read that
             // one. The property can even name a file that no longer exists.
-            let mut icon = crate::local::system_avatar(&user_name)
-                .map(|path| path.display().to_string());
+            let mut icon =
+                crate::local::system_avatar(&user_name).map(|path| path.display().to_string());
             if icon.is_none() {
                 icon = match user_proxy.icon_file().await {
                     Ok(path) if !path.is_empty() && Path::new(&path).is_file() => Some(path),

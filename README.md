@@ -1,13 +1,13 @@
 # PSLDM
 
-Paul's Screen Locker and Display Manager: one login screen for both jobs.
+[![CI](https://github.com/DNAPrototypeX/PSLDM/actions/workflows/ci.yml/badge.svg)](https://github.com/DNAPrototypeX/PSLDM/actions/workflows/ci.yml)
 
-The greeter logs you in. The locker unlocks the session you already have.
-Both draw the same pane from the same code, so the two screens match. The
-greeter adds a user row, two power buttons, and a session list. Nothing else
-differs.
+Paul's Screen Locker and Display Manager: one login pane with two front ends.
+The greeter logs you in. The locker unlocks a session that already runs. Both
+draw the same pane from the same code, so the two screens match. The look
+follows macOS Sonoma.
 
-![The locker and the greeter, side by side](docs/comparison.png)
+![The greeter and the locker, before and after the first key](docs/comparison.png)
 
 ## Install
 Arch Linux:
@@ -39,31 +39,12 @@ keeps a copy of every file it replaces.
 | `--wallpaper PATH`, `--avatar PATH`, `--font NAME` | Your own choices |
 | `--prefix DIR`, `--destdir DIR` | Another place, or a package build |
 | `--dry-run`, `--uninstall` | The steps only, or remove everything |
+The greeter adds the power buttons, the user picker, and the session list.
+Nothing else differs.
 
-Run the script again after you change a monitor, a font, or an avatar.
+## Install
 
-## Try it before you switch
-
-```sh
-psldm-lock --preview ~/path/to/wallpaper.jpg
-```
-
-Press any key, then type `pass`. The preview backend accepts only that word,
-and it needs no password of yours. `psldm-greet --preview` shows the greeter
-parts as well.
-
-## Make it your login screen
-
-Test the greeter on a spare virtual terminal first. Your own login does not
-change while you do.
-
-1. Set `vt = 2` in a copy of `/etc/greetd/config.toml`.
-2. Run `sudo greetd --config /etc/greetd/psldm-test.toml`, then press
-   Ctrl+Alt+F2.
-3. Log in. Pick your session in the list at the bottom. The greeter keeps
-   that choice in `/var/lib/psldm/state.toml`.
-
-When that works twice:
+Install the dependencies, then run the script:
 
 ```sh
 sudo systemctl disable sddm.service      # or your display manager
@@ -83,83 +64,81 @@ hl.bind("SUPER + L", hl.dsp.exec_cmd("pgrep -x psldm-lock || psldm-lock"))
 
 `packaging/hypr/psldm-lock.lua` holds that line for Hyprland. An idle daemon
 needs the full path, because it often runs with a short PATH.
+sudo pacman -S --needed rust clang gtk4 gtk4-layer-shell pam accountsservice greetd
+git clone https://github.com/DNAPrototypeX/PSLDM.git
+cd PSLDM
+./install.sh --greeter --wallpaper ~/Pictures/wallpaper.png
+```
 
-## The screen
+The script builds the programs, copies them to `/usr/local/bin`, and writes
+the PAM file, the wallpaper, your avatar, your font, and the greetd files. It
+keeps a copy of every file that it replaces, with the suffix `.psldm-backup`.
+Run `./install.sh --help` for the options, and `./install.sh --uninstall` to
+remove everything again.
 
-The layout follows macOS Sonoma.
+## Lock the screen
 
-- The clock and the date sit at the top.
-- The avatar and the name sit near the bottom.
-- The greeter puts two small power buttons at the bottom left, and the
-  session list at the bottom right.
+1. Test the locker: `psldm-lock --preview`.
+2. Bind `pgrep -x psldm-lock || psldm-lock` to a key in your compositor. The
+   guard keeps one locker on the screen at a time.
+3. Give the same command to your idle daemon.
+
+`packaging/hypr/psldm-lock.conf` holds both lines for Hyprland. It also sets
+`misc:allow_session_lock_restore`, which lets a new locker take the lock back
+after a crash.
 
 The screen has two phases. Before the first key it shows the picker only.
 The first key slides the password field in under the name over 260
 milliseconds, and the picker rises as the field grows. That key also starts
 the password, so no character is lost.
 
-The screen returns to the first phase after 30 seconds without a key, but
-only while the field is empty. A row of other users appears in the middle of
-the bottom bar when the computer has more than one.
+## Log in with the greeter
 
-The bottom bar floats over the pane, so the height of the power buttons and
-the user row cannot move the avatar. A test compares the two modes above the
-bar and requires an exact match.
+1. Test the greeter: `psldm-greet --preview ~/Pictures/wallpaper.png`.
+2. Open a second text console, and log in there.
+3. Run `sudo systemctl enable greetd.service`.
+4. Restart the computer.
 
-## How it works
+WARNING: greetd replaces your login screen. Keep the second console open
+until the greeter works.
+
+## Crates
 
 | Crate | Purpose |
 | --- | --- |
-| `psldm-ui` | The pane, its state machine, and `assets/style.css` |
+| `psldm-ui` | The shared login pane, its state machine, and the stylesheet |
 | `psldm-auth` | The greetd backend and the PAM backend, behind one channel pair |
-| `psldm-session` | Users, avatars, sessions, and the settings in `/etc/psldm` |
-| `psldm-greet` | The greeter binary for greetd |
-| `psldm-lock` | The locker binary |
+| `psldm-session` | Users, avatars, and sessions, from AccountsService and desktop files |
+| `psldm-greet` | The greeter for greetd |
+| `psldm-lock` | The locker |
 
-| Program | Surface | Backend |
-| --- | --- | --- |
-| `psldm-greet` | `wlr-layer-shell` overlay, one for each monitor | greetd |
-| `psldm-lock` | `ext-session-lock-v1`, one for each monitor | PAM |
+The two programs choose a surface and a backend. The greeter draws on a layer
+shell surface and speaks to greetd. The locker draws on an
+`ext-session-lock-v1` surface and speaks to PAM.
 
-The compositor keeps the lock surface even if `psldm-lock` stops, so a crash
-does not open the session.
+## Requirements
 
-One value, `Mode`, decides what the greeter adds. Everything else is shared.
+- A Wayland compositor with the `ext-session-lock-v1` protocol.
+- `gtk4` 4.12 or later, and `gtk4-layer-shell` 1.3 or later.
+- `accountsservice`, for the user list and the avatars.
+- `greetd`, for the greeter only.
 
-## Commands
-
-| Command | What it does |
-| --- | --- |
-| `psldm-lock` | Locks the session |
-| `psldm-greet` | Shows the greeter. greetd starts it |
-| `psldm-lock --preview [WALLPAPER]` | The pane in a window, demo password `pass` |
-| `psldm-greet --preview [WALLPAPER]` | The same, with the greeter parts |
-| `psldm-lock --check [USER]` | The real PAM stack, on the terminal |
-| `psldm-greet --users` | The users and the sessions that it finds |
-
-`psldm-lock --preview-lock` and `psldm-greet --preview-layer` test the real
-surfaces inside a nested compositor, with the demo backend.
-
-## Tests
+## Develop
 
 ```sh
+cargo build --release
 cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The state machine tests need nothing. One test, `same_pane`, draws both modes
-and compares every pixel:
+The workspace holds 9 tests for the state machine and one pixel test. The
+pixel test draws both modes and compares every pixel, so a change that only
+one mode shows makes it fail.
 
-1. It draws one pane twice and requires the same pixels, so that the
-   comparison means something.
-2. It requires a new pane to draw the idle phase, with no field.
-3. It requires the greeter to draw more than the locker.
-4. It requires the two modes to match above the bottom bar, with the greeter
-   parts on the screen. The bar once stood under the picker and moved the
-   avatar up in the greeter alone.
-5. It hides the three greeter parts, then requires an exact match everywhere.
+GitHub Actions runs the same three commands in an Arch Linux container. See
+`.github/workflows/ci.yml`.
 
-A 3 pixel margin that only the greeter uses makes step 5 fail with about 3900
-different pixels.
+This command draws the picture at the top of this page:
 
 The test needs a Wayland or an X11 display, and it opens two windows for a
 moment. Without a display it reports the reason and stops. Set

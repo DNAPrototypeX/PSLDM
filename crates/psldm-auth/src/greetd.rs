@@ -18,7 +18,7 @@ use greetd_ipc::{AuthMessageType, ErrorType, Request, Response};
 use tokio::net::UnixStream;
 use tracing::{error, info};
 
-use crate::{AuthChannels, AuthEvent, AuthError, AuthHandle, AuthRequest, channel_pair};
+use crate::{AuthChannels, AuthError, AuthEvent, AuthHandle, AuthRequest, channel_pair};
 
 /// The environment variable that holds the path of the greetd socket.
 const GREETD_SOCK: &str = "GREETD_SOCK";

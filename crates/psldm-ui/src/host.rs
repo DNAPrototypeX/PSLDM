@@ -212,8 +212,7 @@ fn session_lock(
     // The hold keeps the program alive while it owns no application window.
     // Every path that ends the lock must drop it, or the program stays in
     // memory for ever and blocks the next lock.
-    let hold: Rc<RefCell<Option<ApplicationHoldGuard>>> =
-        Rc::new(RefCell::new(Some(app.hold())));
+    let hold: Rc<RefCell<Option<ApplicationHoldGuard>>> = Rc::new(RefCell::new(Some(app.hold())));
 
     let failed_flag = Rc::clone(&failed);
     let failed_app = app.clone();
