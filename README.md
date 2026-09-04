@@ -58,9 +58,6 @@ setting to give the lock to a new locker after a crash.
 3. Run `sudo systemctl enable greetd.service`.
 4. Restart the computer.
 
-WARNING: greetd replaces your login screen. Keep the second console open
-until the greeter works.
-
 greetd starts `/usr/local/bin/psldm-greeter-session` on virtual terminal 1.
 That script runs `start-hyprland`, the watchdog that Hyprland ships. The
 watchdog restarts Hyprland after an unclean exit, so a crash brings the
