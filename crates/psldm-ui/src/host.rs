@@ -8,9 +8,9 @@
 //!
 //! - `Preview` is a normal window, for development.
 //! - `LayerShell` is an overlay that covers every monitor. The greeter uses
-//!   it inside the compositor that greetd starts.
-//! - `SessionLock` uses the `ext-session-lock-v1` protocol. The compositor
-//!   keeps the screen locked even if the locker stops.
+//!   it inside the Hyprland instance that greetd starts.
+//! - `SessionLock` uses the `ext-session-lock-v1` protocol. Hyprland keeps
+//!   the screen locked even if the locker stops.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -23,7 +23,7 @@ use gtk4_session_lock::Instance as SessionLock;
 use crate::pane::LoginPane;
 use crate::state::LoginState;
 
-/// The name that a compositor shows for the greeter surface.
+/// The name that Hyprland shows for the greeter surface.
 const LAYER_NAMESPACE: &str = "psldm";
 
 /// Which surface holds the pane.
@@ -39,13 +39,13 @@ pub enum HostKind {
 
 #[derive(Debug, thiserror::Error)]
 pub enum HostError {
-    #[error("no display. Is a Wayland compositor running?")]
+    #[error("no display. Is Hyprland running?")]
     NoDisplay,
     #[error("no monitor is connected")]
     NoMonitors,
-    #[error("this compositor does not support the ext-session-lock-v1 protocol")]
+    #[error("no ext-session-lock-v1 protocol. PSLDM needs Hyprland 0.56 or later")]
     LockUnsupported,
-    #[error("the compositor refused the lock")]
+    #[error("Hyprland refused the lock")]
     LockRefused,
 }
 
@@ -106,8 +106,8 @@ impl Surfaces {
 
     /// Remove the surfaces.
     ///
-    /// The lock host asks the compositor to unlock. The compositor then
-    /// destroys the windows.
+    /// The lock host asks Hyprland to unlock. Hyprland then destroys the
+    /// windows.
     pub fn dismiss(&self) {
         match &self.lock {
             Some(lock) => lock.unlock(),
@@ -218,7 +218,7 @@ fn session_lock(
     let failed_app = app.clone();
     let failed_hold = Rc::clone(&hold);
     lock.connect_failed(move |_| {
-        tracing::error!("The compositor refused the lock");
+        tracing::error!("Hyprland refused the lock");
         failed_flag.set(true);
         failed_hold.borrow_mut().take();
         failed_app.quit();

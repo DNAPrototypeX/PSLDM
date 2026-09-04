@@ -8,22 +8,17 @@
 # Install it at /usr/bin/psldm-greeter-session, or wherever install.sh puts
 # the programs. /etc/greetd/config.toml names this file.
 
-# The compositor that holds the greeter. start-hyprland is the watchdog that
-# Hyprland ships. It restarts the compositor after a crash, so the greeter
-# comes back instead of leaving a text console.
-#
-# Another compositor needs another command here, such as:
-#   cage -s -- /usr/local/bin/psldm-greet
-#   sway --config /etc/greetd/sway.conf
-compositor="start-hyprland -- --config /etc/greetd/hyprland.lua"
-
-if ! command -v "${compositor%% *}" >/dev/null; then
-    echo "psldm-greeter-session: ${compositor%% *} is not installed" >&2
+# start-hyprland is the watchdog that Hyprland ships. It restarts Hyprland
+# after an unclean exit, so a crash brings the greeter back instead of a text
+# console. The greeter ends Hyprland with `hyprctl dispatch exit`, which is a
+# clean exit, so greetd then starts the user session.
+if ! command -v start-hyprland >/dev/null; then
+    echo "psldm-greeter-session: start-hyprland is not installed" >&2
+    echo "psldm-greeter-session: install hyprland 0.56 or later" >&2
     exit 1
 fi
 
-# shellcheck disable=SC2086
-$compositor
+start-hyprland -- --config /etc/greetd/hyprland.lua
 status=$?
 
 # Erase the console before the user session starts.

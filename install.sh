@@ -35,7 +35,9 @@ Options:
                      directory, so it needs this copy
   --font NAME        Use this font family for the pane. Without the option
                      the script reads the font of your desktop
-  --greeter          Also install the greetd files in /etc/greetd
+  --greeter          Also install the greetd files in /etc/greetd, and the
+                     monitor modes. Run it inside Hyprland, because the script
+                     reads the modes with hyprctl
   --enable-greetd    Start greetd at boot. This turns on --greeter
   --no-build         Use the programs in target/release as they are
   --uninstall        Remove every file that this script installs
@@ -119,10 +121,17 @@ check_tools() {
         command -v "$SUDO" >/dev/null || fail "$SUDO is missing"
     fi
 
-    # A package build has no greetd on the build host, so only a real install
-    # needs the program.
-    if [[ "$WITH_GREETER" -eq 1 && -z "$DESTDIR" ]] && ! command -v greetd >/dev/null; then
-        fail "greetd is missing. Install it, then run this script again"
+    # A package build has no greetd and no Hyprland on the build host, so
+    # only a real install needs them.
+    if [[ "$WITH_GREETER" -eq 1 && -z "$DESTDIR" ]]; then
+        command -v greetd >/dev/null ||
+            fail "greetd is missing. Install it, then run this script again"
+        command -v start-hyprland >/dev/null ||
+            fail "start-hyprland is missing. Install hyprland 0.56 or later"
+        command -v hyprctl >/dev/null ||
+            fail "hyprctl is missing. Install hyprland 0.56 or later"
+        command -v python3 >/dev/null ||
+            fail "python3 is missing. The script needs it for the monitor modes"
     fi
     if [[ -n "$WALLPAPER" && ! -f "$WALLPAPER" ]]; then
         fail "no image at $WALLPAPER"
@@ -174,10 +183,10 @@ current_user() {
     printf '%s' "${SUDO_USER:-${USER:-$(id -un)}}"
 }
 
-# The font family of the desktop, without the size.
+# The font family of the session, without the size.
 #
-# gsettings holds the name that most desktops use. The GTK settings file and
-# fontconfig are the fallbacks.
+# gsettings holds the GTK font name, and a Hyprland session sets it too. The
+# GTK settings file and fontconfig are the fallbacks.
 desktop_font() {
     local name=""
 
@@ -256,28 +265,24 @@ install_avatar() {
     run install -Dm644 "$source" "$(target "/var/lib/AccountsService/icons/$user")"
 }
 
-# Write the monitors of the running desktop, so that the greeter uses the
-# same modes. Without this file the greeter uses the preferred mode of each
-# monitor, and a laptop panel often prefers a larger mode than the desktop
-# uses. Everything then looks smaller in the greeter.
+# Write the monitors of the running Hyprland session, so that the greeter
+# uses the same modes. Without this file the greeter uses the preferred mode
+# of each monitor, and a laptop panel often prefers a larger mode than the
+# session uses. Everything then looks smaller in the greeter.
 install_monitors() {
     [[ "$WITH_GREETER" -eq 1 ]] || return 0
 
-    if ! command -v hyprctl >/dev/null; then
-        say "No hyprctl. The greeter will use the preferred mode of each monitor"
-        return 0
-    fi
-    if ! command -v python3 >/dev/null; then
-        say "No python3. The greeter will use the preferred mode of each monitor"
+    # A package build has no running session, so it writes no modes.
+    if [[ -n "$DESTDIR" ]]; then
+        say "Not reading the monitors, because --destdir is set"
         return 0
     fi
 
     local temporary
     temporary="$(mktemp)"
     if ! hyprctl monitors -j 2>/dev/null | monitor_lines > "$temporary"; then
-        say "Cannot read the monitors. The greeter will use the preferred mode"
         rm -f "$temporary"
-        return 0
+        fail "hyprctl cannot read the monitors. Run this script inside Hyprland"
     fi
 
     say "Copying the monitor settings to /etc/psldm/monitors.lua"

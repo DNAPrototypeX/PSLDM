@@ -134,7 +134,7 @@ fn panel(mode: Mode, phase: Phase, config: &UiConfig, user: &UserInfo) -> gtk::W
         pane.add_power_button(PowerAction::Shutdown, |_| {});
         pane.add_power_button(PowerAction::Restart, |_| {});
         pane.set_users(&[user.clone(), other_user()], |_| {});
-        pane.set_sessions(&["Hyprland".into(), "Sway".into(), "GNOME".into()]);
+        pane.set_sessions(&["Hyprland".into(), "Hyprland (uwsm-managed)".into()]);
         pane.select_session("Hyprland");
     }
 
