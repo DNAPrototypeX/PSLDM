@@ -280,15 +280,15 @@ install_monitors() {
         return 0
     fi
 
-    say "Copying the monitor settings to /etc/psldm/monitors.conf"
+    say "Copying the monitor settings to /etc/psldm/monitors.lua"
     if [[ "$DRY_RUN" -eq 1 ]]; then
         sed 's/^/    /' "$temporary"
     fi
-    run install -Dm644 "$temporary" "$(target /etc/psldm/monitors.conf)"
+    run install -Dm644 "$temporary" "$(target /etc/psldm/monitors.lua)"
     rm -f "$temporary"
 }
 
-# Turn the JSON of hyprctl into Hyprland monitor lines.
+# Turn the JSON of hyprctl into Hyprland monitor calls, in the Lua format.
 monitor_lines() {
     python3 -c '
 import json, sys
@@ -297,14 +297,19 @@ monitors = json.load(sys.stdin)
 if not monitors:
     raise SystemExit(1)
 
-print("# Written by install.sh from the running desktop. Do not edit.")
+print("-- Written by install.sh from the running desktop. Do not edit.")
 for monitor in monitors:
     mode = f"{monitor["width"]}x{monitor["height"]}@{monitor["refreshRate"]:.2f}"
     position = f"{monitor["x"]}x{monitor["y"]}"
-    line = f"monitor = {monitor["name"]}, {mode}, {position}, {monitor["scale"]}"
+    fields = [
+        f"output = {json.dumps(monitor["name"])}",
+        f"mode = \"{mode}\"",
+        f"position = \"{position}\"",
+        f"scale = {monitor["scale"]}",
+    ]
     if monitor.get("transform"):
-        line += f", transform, {monitor["transform"]}"
-    print(line)
+        fields.append(f"transform = {monitor["transform"]}")
+    print(f"hl.monitor({{ {", ".join(fields)} }})")
 '
 }
 
@@ -325,7 +330,7 @@ install_greeter() {
     say "Installing the greetd files in /etc/greetd"
 
     back_up "$(target /etc/greetd/config.toml)"
-    back_up "$(target /etc/greetd/hyprland.conf)"
+    back_up "$(target /etc/greetd/hyprland.lua)"
 
     # Every file must name the programs where this script put them.
     local temporary
@@ -336,8 +341,8 @@ install_greeter() {
     run install -Dm644 "$temporary" "$(target /etc/greetd/config.toml)"
 
     sed "s|/usr/bin/psldm-greet|$PREFIX/bin/psldm-greet|" \
-        "$REPO/packaging/greetd/hyprland.conf" > "$temporary"
-    run install -Dm644 "$temporary" "$(target /etc/greetd/hyprland.conf)"
+        "$REPO/packaging/greetd/hyprland.lua" > "$temporary"
+    run install -Dm644 "$temporary" "$(target /etc/greetd/hyprland.lua)"
 
     rm -f "$temporary"
     run install -Dm755 "$REPO/packaging/greetd/greeter-session" \
@@ -361,8 +366,8 @@ report() {
     say "Test the locker now:"
     say "  $PREFIX/bin/psldm-lock --preview"
     say ""
-    say "Add this line to ~/.config/hypr/hyprland.conf to lock with SUPER + L:"
-    say "  bind = SUPER, L, exec, pgrep -x psldm-lock || $PREFIX/bin/psldm-lock"
+    say "Add this line to ~/.config/hypr/hyprland.lua to lock with SUPER + L:"
+    say "  hl.bind(\"SUPER + L\", hl.dsp.exec_cmd(\"pgrep -x psldm-lock || $PREFIX/bin/psldm-lock\"))"
 
     if [[ "$WITH_GREETER" -eq 1 && "$ENABLE_GREETD" -eq 0 ]]; then
         say ""
@@ -384,11 +389,11 @@ uninstall() {
                 "$(target "$PREFIX/bin/psldm-greeter-session")" \
                 "$(target /etc/pam.d/psldm)" \
                 "$(target /etc/psldm/wallpaper)" \
-                "$(target /etc/psldm/monitors.conf)" \
+                "$(target /etc/psldm/monitors.lua)" \
                 "$(target /etc/psldm/font)" \
                 "$(target /var/lib/psldm/state.toml)" \
                 "$(target "/var/lib/AccountsService/icons/$(current_user)")" \
-                "$(target /etc/greetd/hyprland.conf)" \
+                "$(target /etc/greetd/hyprland.lua)" \
                 "$(target /etc/greetd/config.toml)"; do
         [[ -e "$path" ]] || continue
         say "  removing $path"

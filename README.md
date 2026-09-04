@@ -13,7 +13,7 @@ differs.
 Arch Linux:
 
 ```sh
-sudo pacman -S rust gtk4 gtk4-layer-shell greetd accountsservice hyprland
+sudo pacman -S rust clang gtk4 gtk4-layer-shell greetd accountsservice hyprland
 git clone https://github.com/DNAPrototypeX/PSLDM && cd PSLDM
 ./install.sh --greeter --wallpaper ~/path/to/wallpaper.jpg
 ```
@@ -26,7 +26,7 @@ things that keep the two screens the same:
 | `/etc/pam.d/psldm` | The PAM stack for the locker |
 | `/etc/psldm/wallpaper` | Your image, readable by the greeter user |
 | `/etc/psldm/font` | The font family of your desktop |
-| `/etc/psldm/monitors.conf` | The monitor modes of your desktop |
+| `/etc/psldm/monitors.lua` | The monitor modes of your desktop |
 | `/var/lib/AccountsService/icons/<user>` | Your avatar |
 
 The script calls `sudo` only for the steps outside the repository, and it
@@ -77,11 +77,11 @@ Ctrl+Alt+F2 for a text login and turn it back on.
 
 Bind a key, and point your idle daemon at the same command:
 
-```
-bind = SUPER, L, exec, pgrep -x psldm-lock || psldm-lock
+```lua
+hl.bind("SUPER + L", hl.dsp.exec_cmd("pgrep -x psldm-lock || psldm-lock"))
 ```
 
-`packaging/hypr/psldm-lock.conf` holds that line for Hyprland. An idle daemon
+`packaging/hypr/psldm-lock.lua` holds that line for Hyprland. An idle daemon
 needs the full path, because it often runs with a short PATH.
 
 ## The screen
@@ -172,11 +172,15 @@ moment. Without a display it reports the reason and stops. Set
 | `gtk4`, `gtk4-layer-shell` 1.1 or later | Both programs. The session-lock API is part of gtk4-layer-shell | Nothing runs |
 | `greetd` | The greeter only | The locker still works |
 | `accountsservice` | The user list and the avatars | The greeter shows the user who runs it |
-| A compositor for the greeter | `hyprland`, `sway`, or `cage` | The greeter has no screen |
+| A compositor for the greeter | `hyprland` 0.56 or later, `sway`, or `cage` | The greeter has no screen |
 | `python3` | `install.sh`, to copy the monitor modes | The greeter uses the preferred mode |
+| `clang` | The build only. The `pam-sys` crate runs `bindgen`, which loads `libclang` | The build stops at `clang-sys` |
 
 The compositor of your session must support `ext-session-lock-v1`. Hyprland,
 Sway, KDE, and River do.
+
+The two Hyprland files use the Lua format, which Hyprland 0.56 reads. Hyprland
+still reads the older `.conf` format, and it plans to drop it.
 
 ## Other desktops
 
@@ -185,9 +189,9 @@ choice, and each one is easy to change:
 
 - `packaging/greetd/greeter-session` names the compositor for the greeter.
   Change one line for `cage` or `sway`.
-- `packaging/greetd/hyprland.conf` configures that compositor. Another
+- `packaging/greetd/hyprland.lua` configures that compositor. Another
   compositor needs its own file.
-- `install.sh --greeter` writes `/etc/psldm/monitors.conf` with `hyprctl`.
+- `install.sh --greeter` writes `/etc/psldm/monitors.lua` with `hyprctl`.
   Another compositor keeps the preferred mode of each monitor.
 
 The wallpaper, the font, the avatar, and the session memory work the same
