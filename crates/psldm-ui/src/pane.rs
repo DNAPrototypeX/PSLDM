@@ -11,6 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use gtk::gdk;
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -226,9 +227,6 @@ impl LoginPane {
     }
 
     /// Give the keyboard to the field.
-    ///
-    /// The field keeps the focus while the screen shows the clock only, so
-    /// the first key of the password lands in it.
     pub fn focus_entry(&self) {
         self.entry.grab_focus();
     }
@@ -236,18 +234,26 @@ impl LoginPane {
     /// Call `handler` on every key and on every click.
     ///
     /// The handler returns `true` when the screen was showing the clock only.
-    /// That first key wakes the screen, and the field does not receive it.
-    /// Every later key reaches the field.
+    /// That first key wakes the screen, and it also starts the password. The
+    /// field is still sliding in and does not hold the keyboard yet, so this
+    /// puts the character in the field. Every later key reaches the field on
+    /// its own.
     pub fn connect_activity(&self, handler: impl Fn() -> bool + Clone + 'static) {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let key_handler = handler.clone();
-        keys.connect_key_pressed(move |_, _, _, _| {
-            if key_handler() {
-                glib::Propagation::Stop
-            } else {
-                glib::Propagation::Proceed
+        let entry = self.entry.clone();
+        keys.connect_key_pressed(move |_, key, _, modifiers| {
+            if !key_handler() {
+                return glib::Propagation::Proceed;
             }
+            entry.grab_focus();
+            if let Some(character) = typed_character(key, modifiers) {
+                let mut position = entry.text_length() as i32;
+                entry.insert_text(&character.to_string(), &mut position);
+                entry.set_position(-1);
+            }
+            glib::Propagation::Stop
         });
         self.root.add_controller(keys);
 
@@ -427,6 +433,22 @@ impl LoginPane {
 }
 
 /// Build the clock and the date, and update them every second.
+/// The character that a key press types, or `None` for a key that types
+/// nothing.
+///
+/// A key held with Control, Alt, or Super runs a command somewhere else, so
+/// it must not start the password. A control character such as Escape or Tab
+/// must not either.
+fn typed_character(key: gdk::Key, modifiers: gdk::ModifierType) -> Option<char> {
+    let commands = gdk::ModifierType::CONTROL_MASK
+        | gdk::ModifierType::ALT_MASK
+        | gdk::ModifierType::SUPER_MASK;
+    if modifiers.intersects(commands) {
+        return None;
+    }
+    key.to_unicode().filter(|character| !character.is_control())
+}
+
 /// Add or remove one class.
 fn set_css_class(widget: &impl IsA<gtk::Widget>, class: &str, present: bool) {
     if present {

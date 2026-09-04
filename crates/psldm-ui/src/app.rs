@@ -144,8 +144,8 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
             });
         }
 
-        // The field keeps the focus while the screen shows the clock only, so
-        // the first key of the password lands in it.
+        // The field holds the keyboard from the start, so every key of the
+        // password lands in it.
         surfaces.focus_entry();
 
         let last_input = Rc::new(Cell::new(Instant::now()));
@@ -160,8 +160,8 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
                 if woke {
                     wake_surfaces.render(&wake_state.borrow());
                 }
-                // Swallow the key that wakes the screen. macOS does not put
-                // that first key in the password.
+                // Report the wake, so that the pane puts the key that woke
+                // the screen at the start of the password.
                 woke
             });
         }
