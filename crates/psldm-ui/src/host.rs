@@ -275,35 +275,45 @@ impl Surfaces {
     /// Drop the pane of every monitor that the display no longer lists.
     fn drop_gone_monitors(&self) {
         let live = monitors();
-        let mut closed = Vec::new();
+        let all = std::mem::take(&mut *self.screens.borrow_mut());
+        let (kept, gone): (Vec<Screen>, Vec<Screen>) = all.into_iter().partition(|screen| {
+            let Some(monitor) = &screen.monitor else {
+                return true;
+            };
+            monitor.is_valid() && live.contains(monitor)
+        });
+        *self.screens.borrow_mut() = kept;
 
-        {
-            let mut screens = self.screens.borrow_mut();
-            screens.retain(|screen| {
-                let Some(monitor) = &screen.monitor else {
-                    return true;
-                };
-                let keep = monitor.is_valid() && live.contains(monitor);
-                if !keep {
-                    tracing::info!("Removing the pane on {}", monitor_name(monitor));
-                    closed.push(screen.window.clone());
-                }
-                keep
-            });
-        }
-
-        if closed.is_empty() {
+        if gone.is_empty() {
             return;
         }
 
-        for window in closed {
-            // The session-lock library unmaps and destroys its own window
-            // when the monitor goes away. Closing it here as well can break
-            // the Wayland connection, so only the other hosts close it.
-            if self.lock.is_none() {
-                window.destroy();
+        for screen in &gone {
+            if let Some(monitor) = &screen.monitor {
+                tracing::info!("Removing the pane on {}", monitor_name(monitor));
             }
         }
+
+        // Give the panes up on the next turn of the main loop, and never
+        // inside this one.
+        //
+        // GDK takes the monitor out of the list first, which brings the
+        // program here, and it invalidates the monitor after that.
+        // gtk4-session-lock cleans its lock surface up in the handler for
+        // that second step, and it keeps no reference of its own to the
+        // window. This program holds the only one. A drop here would free
+        // the window between the two steps, and the library would then read
+        // freed memory and stop the program with a segmentation fault.
+        let closes_windows = self.lock.is_none();
+        gtk::glib::idle_add_local_once(move || {
+            for screen in gone {
+                // The session-lock library destroys its own window. Every
+                // other host must close the window itself.
+                if closes_windows {
+                    screen.window.destroy();
+                }
+            }
+        });
 
         // The closed screen may have held the keyboard. Give it to a screen
         // that is still there, or the password field takes no keys.
