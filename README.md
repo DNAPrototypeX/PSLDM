@@ -66,24 +66,6 @@ That script runs `start-hyprland`, the watchdog that Hyprland ships. The
 watchdog restarts Hyprland after an unclean exit, so a crash brings the
 greeter back instead of a text console.
 
-## Monitors that come and go
-
-Both programs watch the monitor list. A monitor that arrives gets its own
-pane at once. A monitor that goes away loses its pane. This works while the
-screen is locked and while the greeter is on the screen.
-
-The count can fall to zero. A laptop with a closed lid and no second screen
-shows nothing, and the programs stay in memory. The pane comes back on the
-first monitor that arrives. The locker keeps the lock during that time, so a
-closed lid never opens the session.
-
-The locker runs inside your own Hyprland, which already holds your monitor
-rules. The greeter runs inside the Hyprland instance that greetd starts. That
-instance reads `/etc/psldm/monitors.lua`, which `install.sh --greeter` writes
-from your desktop session. A monitor that the file names gets your mode, your
-position, and your scale. Every other monitor gets the mode that the monitor
-prefers, with the position and the scale that Hyprland picks.
-
 ## Crates
 
 | Crate | Purpose |
