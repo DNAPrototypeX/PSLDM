@@ -231,6 +231,14 @@ impl LoginPane {
         self.entry.grab_focus();
     }
 
+    /// Report whether the field holds the keyboard.
+    ///
+    /// A monitor that arrives builds a new pane, and that pane must not take
+    /// the keyboard from the screen that the user types on.
+    pub fn entry_has_focus(&self) -> bool {
+        self.entry.has_focus()
+    }
+
     /// Call `handler` on every key and on every click.
     ///
     /// The handler returns `true` when the screen was showing the clock only.
@@ -369,6 +377,25 @@ impl LoginPane {
                 return;
             }
         }
+    }
+
+    /// Call `handler` when the user picks another session.
+    ///
+    /// Each monitor shows its own list. The handler copies the choice to the
+    /// other monitors, so that a screen that goes away takes no choice with
+    /// it.
+    pub fn connect_session_selected(&self, handler: impl Fn(&str) + 'static) {
+        let sessions = self.sessions.clone();
+        self.sessions.connect_selected_notify(move |_| {
+            let name = sessions
+                .model()
+                .and_then(|model| model.item(sessions.selected()))
+                .and_then(|item| item.downcast::<gtk::StringObject>().ok())
+                .map(|text| text.string().to_string());
+            if let Some(name) = name {
+                handler(&name);
+            }
+        });
     }
 
     /// The name of the selected session, if the list has one.

@@ -10,7 +10,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::process::Command;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
 use gtk::glib;
@@ -94,9 +94,12 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
             return;
         };
 
-        let make_pane = || LoginPane::new(setup.mode, &setup.config, &setup.user);
-        let surfaces = match setup.host.present(app, &make_pane) {
-            Ok(surfaces) => Rc::new(surfaces),
+        let make_pane = {
+            let setup = Rc::clone(&setup);
+            Box::new(move || LoginPane::new(setup.mode, &setup.config, &setup.user))
+        };
+        let surfaces = match setup.host.present(app, make_pane) {
+            Ok(surfaces) => surfaces,
             Err(err) => {
                 tracing::error!("Cannot show the pane: {err}");
                 activate_failed.set(true);
@@ -121,50 +124,69 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
             setup.user.username.clone(),
         )));
 
-        // Draw the first state before anything else, so that no frame shows
-        // a pane that the state machine has not approved.
-        surfaces.render(&state.borrow());
-
-        if setup.mode == Mode::Greet {
-            fill_greeter(&setup, &surfaces, &state);
-        }
-
         let (sender, mut receiver) = backend.split();
+        let last_input = Rc::new(Cell::new(Instant::now()));
+        // The session that the greeter starts. Every monitor shows its own
+        // list, so one value holds the choice for all of them.
+        let session = Rc::new(RefCell::new(setup.selected_session.clone()));
 
-        for pane in surfaces.panes() {
-            let submit_state = Rc::clone(&state);
-            let submit_sender = sender.clone();
-            let submit_surfaces = Rc::clone(&surfaces);
+        // Give every pane its handlers and its first frame. A monitor that
+        // the user plugs in later runs the same code, so the new screen
+        // shows the same pane as the screens that were already there.
+        let pane_setup = Rc::clone(&setup);
+        let pane_state = Rc::clone(&state);
+        let pane_sender = sender.clone();
+        let pane_clock = Rc::clone(&last_input);
+        let pane_session = Rc::clone(&session);
+        let pane_surfaces = Rc::downgrade(&surfaces);
+        surfaces.on_new_pane(move |pane| {
+            // Draw the state before anything else, so that no frame shows a
+            // pane that the state machine has not approved.
+            pane.render(&pane_state.borrow());
+
+            if pane_setup.mode == Mode::Greet {
+                fill_greeter(
+                    &pane_setup,
+                    &pane_surfaces,
+                    &pane_state,
+                    &pane_session,
+                    pane,
+                );
+            }
+
+            let submit_state = Rc::clone(&pane_state);
+            let submit_sender = pane_sender.clone();
+            let submit_surfaces = pane_surfaces.clone();
             pane.connect_submit(move |answer| {
                 let request = submit_state.borrow_mut().submit(answer);
                 if let Some(request) = request {
                     send(&submit_sender, request);
                 }
-                submit_surfaces.render(&submit_state.borrow());
+                if let Some(surfaces) = submit_surfaces.upgrade() {
+                    surfaces.render(&submit_state.borrow());
+                }
             });
-        }
 
-        // The field holds the keyboard from the start, so every key of the
-        // password lands in it.
-        surfaces.focus_entry();
-
-        let last_input = Rc::new(Cell::new(Instant::now()));
-
-        for pane in surfaces.panes() {
-            let wake_state = Rc::clone(&state);
-            let wake_surfaces = Rc::clone(&surfaces);
-            let wake_clock = Rc::clone(&last_input);
+            let wake_state = Rc::clone(&pane_state);
+            let wake_surfaces = pane_surfaces.clone();
+            let wake_clock = Rc::clone(&pane_clock);
             pane.connect_activity(move || {
                 wake_clock.set(Instant::now());
                 let woke = wake_state.borrow_mut().wake();
                 if woke {
-                    wake_surfaces.render(&wake_state.borrow());
+                    if let Some(surfaces) = wake_surfaces.upgrade() {
+                        surfaces.render(&wake_state.borrow());
+                    }
                 }
                 // Report the wake, so that the pane puts the key that woke
                 // the screen at the start of the password.
                 woke
             });
-        }
+        });
+
+        // The field holds the keyboard from the start, so every key of the
+        // password lands in it.
+        surfaces.focus_entry();
 
         let idle_state = Rc::clone(&state);
         let idle_surfaces = Rc::clone(&surfaces);
@@ -208,7 +230,7 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
                         loop_surfaces.dismiss();
                         return;
                     }
-                    UiAction::StartSession => match chosen_session(&loop_setup, &loop_surfaces) {
+                    UiAction::StartSession => match chosen_session(&loop_setup, &session) {
                         Some(session) => {
                             if let Some(remember) = &loop_setup.remember {
                                 let username = loop_state.borrow().username.clone();
@@ -245,53 +267,76 @@ pub fn run(setup: AppSetup, backend: AuthHandle) -> glib::ExitCode {
     code
 }
 
-/// Add the parts that only the greeter shows.
-fn fill_greeter(setup: &Rc<AppSetup>, surfaces: &Rc<Surfaces>, state: &Rc<RefCell<LoginState>>) {
+/// Add the parts that only the greeter shows to one pane.
+///
+/// Every pane runs this, both the panes of the first monitors and the panes
+/// of the monitors that arrive later. The user, the session, and the power
+/// buttons therefore match on every screen.
+fn fill_greeter(
+    setup: &Rc<AppSetup>,
+    surfaces: &Weak<Surfaces>,
+    state: &Rc<RefCell<LoginState>>,
+    session: &Rc<RefCell<Option<String>>>,
+    pane: &Rc<LoginPane>,
+) {
     let names: Vec<String> = setup
         .sessions
         .iter()
         .map(|session| session.name.clone())
         .collect();
 
-    for pane in surfaces.panes() {
-        pane.set_sessions(&names);
-        if let Some(name) = &setup.selected_session {
-            pane.select_session(name);
-        }
+    pane.set_sessions(&names);
+    if let Some(name) = session.borrow().as_deref() {
+        pane.select_session(name);
+    }
 
-        let select_state = Rc::clone(state);
-        let select_surfaces = Rc::clone(surfaces);
-        pane.set_users(&setup.users, move |user| {
-            select_state.borrow_mut().username = user.username.clone();
-            for pane in select_surfaces.panes() {
+    // Show the user that the state holds. A monitor that arrives after the
+    // user picked another name must show that name too.
+    let username = state.borrow().username.clone();
+    if let Some(user) = setup.users.iter().find(|user| user.username == username) {
+        pane.set_user(user);
+    }
+
+    let choice_session = Rc::clone(session);
+    let choice_surfaces = surfaces.clone();
+    pane.connect_session_selected(move |name| {
+        *choice_session.borrow_mut() = Some(name.to_string());
+        if let Some(surfaces) = choice_surfaces.upgrade() {
+            for pane in surfaces.panes() {
+                pane.select_session(name);
+            }
+        }
+    });
+
+    let select_state = Rc::clone(state);
+    let select_surfaces = surfaces.clone();
+    pane.set_users(&setup.users, move |user| {
+        select_state.borrow_mut().username = user.username.clone();
+        if let Some(surfaces) = select_surfaces.upgrade() {
+            for pane in surfaces.panes() {
                 pane.set_user(user);
             }
-        });
-
-        for action in [PowerAction::Restart, PowerAction::Shutdown] {
-            let setup = Rc::clone(setup);
-            pane.add_power_button(action, move |action| {
-                let command = match action {
-                    PowerAction::Restart => &setup.reboot,
-                    PowerAction::Shutdown => &setup.poweroff,
-                };
-                run_command(command);
-            });
         }
+    });
+
+    for action in [PowerAction::Restart, PowerAction::Shutdown] {
+        let setup = Rc::clone(setup);
+        pane.add_power_button(action, move |action| {
+            let command = match action {
+                PowerAction::Restart => &setup.reboot,
+                PowerAction::Shutdown => &setup.poweroff,
+            };
+            run_command(command);
+        });
     }
 }
 
 /// The session that the user selected.
 fn chosen_session<'a>(
     setup: &'a Rc<AppSetup>,
-    surfaces: &Rc<Surfaces>,
+    session: &Rc<RefCell<Option<String>>>,
 ) -> Option<&'a SessionChoice> {
-    let selected = surfaces
-        .panes()
-        .iter()
-        .find_map(|pane| pane.selected_session());
-
-    match selected {
+    match session.borrow().as_deref() {
         Some(name) => setup.sessions.iter().find(|session| session.name == name),
         None => setup.sessions.first(),
     }
